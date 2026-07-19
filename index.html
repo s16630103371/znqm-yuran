@@ -301,6 +301,13 @@
             transform: translateY(-2px);
         }
 
+        /* ===== Error Box ===== */
+        .error-box {
+            text-align: center; padding: 40px;
+            font-family: var(--font-mono); color: #ff3366;
+            font-size: 1rem; letter-spacing: 1px;
+        }
+
         /* ===== Stats Bar ===== */
         .stats-bar {
             position: relative; z-index: 1;
@@ -825,6 +832,58 @@
 
         .footer-links a:hover { color: var(--neon-cyan); }
 
+        /* ===== Image Upload ===== */
+        .upload-area {
+            border: 2px dashed var(--border-glow);
+            border-radius: 4px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            min-height: 120px;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        .upload-area:hover {
+            border-color: var(--neon-cyan);
+            background: rgba(0, 255, 255, 0.03);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
+        }
+        .upload-area.multi { min-height: 100px; }
+        .upload-hint {
+            font-family: var(--font-mono);
+            font-size: 0.8rem; letter-spacing: 1px;
+            color: var(--text-secondary);
+        }
+        .upload-preview { display: none; }
+        .upload-preview.has-image { display: block; }
+        .upload-preview img {
+            max-width: 100%; max-height: 300px;
+            border-radius: 4px;
+            border: 1px solid var(--border-glow);
+        }
+        .upload-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .upload-preview-grid img {
+            width: 100%; aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 2px;
+            border: 1px solid var(--border-glow);
+        }
+        .upload-preview-grid .slot {
+            aspect-ratio: 1;
+            border: 1px dashed rgba(255,255,255,0.1);
+            border-radius: 2px;
+            display: flex; align-items: center; justify-content: center;
+            font-family: var(--font-mono);
+            font-size: 1.5rem;
+            color: rgba(255,255,255,0.1);
+        }
+
         /* ===== Responsive ===== */
         @media (max-width: 768px) {
             .nav { padding: 0 16px; }
@@ -908,8 +967,10 @@
 
         <!-- Tabs -->
         <div class="generator-tabs">
-            <button class="gen-tab active" data-tab="image">图片生成</button>
-            <button class="gen-tab" data-tab="video">视频生成</button>
+            <button class="gen-tab active" data-tab="image">文生图</button>
+            <button class="gen-tab" data-tab="img2img">图生图</button>
+            <button class="gen-tab" data-tab="img2video">图生视频</button>
+            <button class="gen-tab" data-tab="describe">AI 识图</button>
         </div>
 
         <!-- Image Generation Panel -->
@@ -1036,6 +1097,87 @@
                     <button class="result-action-btn" onclick="downloadResult('video')">下载</button>
                     <button class="result-action-btn" onclick="clearResult('video')">清除</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Image-to-Image Panel -->
+        <div class="gen-panel" id="panel-img2img">
+            <div class="gen-card">
+                <div class="gen-card-header">
+                    <span class="corner"></span>
+                    IMG2IMG_GENERATION.exe
+                    <span class="corner"></span>
+                </div>
+                <div class="upload-area" id="img2img-upload" onclick="document.getElementById('img2img-file').click()">
+                    <input type="file" id="img2img-file" accept="image/*" hidden onchange="handleUpload(this, 'img2img-preview', 'img2img')">
+                    <div class="upload-hint">📁 点击或拖拽上传参考图片</div>
+                    <div class="upload-preview" id="img2img-preview"></div>
+                </div>
+                <div class="prompt-input-group" style="margin-top:16px;">
+                    <div class="prompt-label">&gt; PROMPT</div>
+                    <textarea class="prompt-input" id="img2img-prompt" placeholder="描述你希望生成的新画面..." maxlength="1000"></textarea>
+                </div>
+                <button class="generate-btn" onclick="generateImg2Img()">
+                    <span class="btn-text">▸ 生成新图片</span>
+                </button>
+            </div>
+            <div class="result-panel" id="img2img-result">
+                <div class="result-container" id="img2img-result-container"></div>
+                <div class="result-actions">
+                    <button class="result-action-btn" onclick="clearResult('img2img')">清除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Images-to-Video Panel -->
+        <div class="gen-panel" id="panel-img2video">
+            <div class="gen-card">
+                <div class="gen-card-header">
+                    <span class="corner"></span>
+                    IMG2VIDEO_GENERATION.exe
+                    <span class="corner"></span>
+                </div>
+                <div class="upload-area multi" id="img2video-upload" onclick="document.getElementById('img2video-file').click()">
+                    <input type="file" id="img2video-file" accept="image/*" multiple hidden onchange="handleMultiUpload(this, 'img2video-preview', 'img2video')">
+                    <div class="upload-hint">📁 上传 2-9 张图片组成视频帧（点击或拖拽）</div>
+                    <div class="upload-preview-grid" id="img2video-preview"></div>
+                </div>
+                <div class="prompt-input-group" style="margin-top:16px;">
+                    <div class="prompt-label">&gt; PROMPT</div>
+                    <textarea class="prompt-input" id="img2video-prompt" placeholder="描述视频风格、转场效果..." maxlength="500"></textarea>
+                </div>
+                <button class="generate-btn" onclick="generateImg2Video()">
+                    <span class="btn-text">▸ 生成视频帧序列</span>
+                </button>
+            </div>
+            <div class="result-panel" id="img2video-result">
+                <div class="result-container" id="img2video-result-container"></div>
+            </div>
+        </div>
+
+        <!-- AI Describe Panel -->
+        <div class="gen-panel" id="panel-describe">
+            <div class="gen-card">
+                <div class="gen-card-header">
+                    <span class="corner"></span>
+                    AI_DESCRIBE.exe
+                    <span class="corner"></span>
+                </div>
+                <div class="upload-area" id="describe-upload" onclick="document.getElementById('describe-file').click()">
+                    <input type="file" id="describe-file" accept="image/*" hidden onchange="handleUpload(this, 'describe-preview', 'describe')">
+                    <div class="upload-hint">📁 上传图片让 AI 自动生成描述</div>
+                    <div class="upload-preview" id="describe-preview"></div>
+                </div>
+                <div class="api-input-group" style="margin-top:16px;">
+                    <label style="min-width:auto;">DeepSeek Key (可选)</label>
+                    <input type="password" id="describe-deepseek-key" placeholder="填入 DeepSeek Key 获得中文识别，留空使用免费英文识别">
+                </div>
+                <button class="generate-btn" onclick="describeImage()">
+                    <span class="btn-text">▸ AI 识别图片</span>
+                </button>
+            </div>
+            <div class="result-panel" id="describe-result">
+                <div class="result-container" id="describe-result-container"></div>
             </div>
         </div>
 
@@ -1756,6 +1898,192 @@
             }
             onProviderChange();
         })();
+
+        /* ===== Image Upload Handlers ===== */
+        const uploadedImages = { img2img: null, img2video: [], describe: null };
+
+        function handleUpload(input, previewId, mode) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                uploadedImages[mode] = e.target.result;
+                const preview = document.getElementById(previewId);
+                const uploadDiv = input.parentElement;
+                uploadDiv.querySelector('.upload-hint').style.display = 'none';
+                preview.innerHTML = `<img src="${e.target.result}" alt="uploaded">`;
+                preview.classList.add('has-image');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleMultiUpload(input, previewId, mode) {
+            const files = Array.from(input.files).slice(0, 9);
+            uploadedImages[mode] = [];
+            const preview = document.getElementById(previewId);
+            const uploadDiv = input.parentElement;
+            uploadDiv.querySelector('.upload-hint').style.display = files.length ? 'none' : '';
+
+            preview.innerHTML = '';
+            files.forEach((file, i) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    uploadedImages[mode][i] = e.target.result;
+                    const img = document.createElement('img');
+                    img.src = e.target.result;
+                    img.alt = `Frame ${i + 1}`;
+                    preview.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            });
+            // Fill remaining slots
+            for (let i = files.length; i < 9; i++) {
+                preview.appendChild(Object.assign(document.createElement('div'), { className: 'slot', textContent: '+' }));
+            }
+        }
+
+        /* ===== New Generation Functions ===== */
+
+        async function generateImg2Img() {
+            const image = uploadedImages['img2img'];
+            const prompt = document.getElementById('img2img-prompt').value.trim();
+            if (!image) { alert('请先上传参考图片'); return; }
+            if (!prompt) { alert('请输入描述'); return; }
+
+            const btn = document.querySelector('#panel-img2img .generate-btn');
+            const resultPanel = document.getElementById('img2img-result');
+            const resultContainer = document.getElementById('img2img-result-container');
+            btn.classList.add('loading'); btn.disabled = true;
+            resultPanel.classList.add('show');
+            resultContainer.classList.add('loading-state');
+            resultContainer.innerHTML = '<span class="loading-text">AI 正在生成中...</span>';
+
+            try {
+                const resp = await fetch('/api/img2img', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image, prompt, size: document.getElementById('image-size').value, style: document.getElementById('image-style').value })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error);
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = data.images.map(url => `<img src="${url}" alt="Generated" class="result-image">`).join('');
+                updateCounter();
+            } catch (err) {
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = `<div class="error-box">● ${err.message}</div>`;
+            } finally {
+                btn.classList.remove('loading'); btn.disabled = false;
+            }
+        }
+
+        async function generateImg2Video() {
+            const images = uploadedImages['img2video'];
+            const prompt = document.getElementById('img2video-prompt').value.trim();
+            if (!images || images.length < 2) { alert('请至少上传 2 张图片'); return; }
+
+            const btn = document.querySelector('#panel-img2video .generate-btn');
+            const resultPanel = document.getElementById('img2video-result');
+            const resultContainer = document.getElementById('img2video-result-container');
+            btn.classList.add('loading'); btn.disabled = true;
+            resultPanel.classList.add('show');
+            resultContainer.classList.add('loading-state');
+            resultContainer.innerHTML = '<span class="loading-text">正在生成视频帧序列...</span>';
+
+            try {
+                const resp = await fetch('/api/img2video', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ images, prompt, duration: 12 })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error);
+
+                resultContainer.classList.remove('loading-state');
+                const allFrames = [...data.frames, ...data.transitions];
+                const framePlayer = `
+                    <div style="margin-bottom:12px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);text-align:center;">
+                        ▸ 视频帧序列 · ${allFrames.length} 帧 · ${data.duration}秒 · ${data.provider}
+                    </div>
+                    <div id="video-frames-player" style="position:relative;width:100%;max-width:640px;margin:0 auto;">
+                        <img id="video-frame-display" src="${allFrames[0]}" style="width:100%;border:1px solid var(--border-glow);border-radius:4px;">
+                        <div style="display:flex;gap:8px;margin-top:8px;justify-content:center;align-items:center;">
+                            <button onclick="playFrameSequence(${JSON.stringify(allFrames).replace(/"/g, '&quot;')})" class="result-action-btn">▶ 播放</button>
+                            <span id="frame-counter" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-secondary);">1 / ${allFrames.length}</span>
+                            <button onclick="stopFrameSequence()" class="result-action-btn">■ 停止</button>
+                        </div>
+                    </div>`;
+                resultContainer.innerHTML = framePlayer;
+                window._frameData = allFrames;
+                updateCounter();
+            } catch (err) {
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = `<div class="error-box">● ${err.message}</div>`;
+            } finally {
+                btn.classList.remove('loading'); btn.disabled = false;
+            }
+        }
+
+        let _frameInterval = null;
+        function playFrameSequence(frames) {
+            stopFrameSequence();
+            const display = document.getElementById('video-frame-display');
+            const counter = document.getElementById('frame-counter');
+            if (!display) return;
+            let idx = 0;
+            const fps = Math.max(1, Math.floor(frames.length / 10));
+            _frameInterval = setInterval(() => {
+                idx = (idx + 1) % frames.length;
+                display.src = frames[idx];
+                if (counter) counter.textContent = `${idx + 1} / ${frames.length}`;
+            }, 1000 / fps);
+        }
+        function stopFrameSequence() {
+            if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; }
+        }
+
+        async function describeImage() {
+            const image = uploadedImages['describe'];
+            if (!image) { alert('请先上传图片'); return; }
+            const deepseekKey = document.getElementById('describe-deepseek-key').value.trim();
+
+            const btn = document.querySelector('#panel-describe .generate-btn');
+            const resultPanel = document.getElementById('describe-result');
+            const resultContainer = document.getElementById('describe-result-container');
+            btn.classList.add('loading'); btn.disabled = true;
+            resultPanel.classList.add('show');
+            resultContainer.classList.add('loading-state');
+            resultContainer.innerHTML = '<span class="loading-text">AI 正在识别图片内容...</span>';
+
+            try {
+                const resp = await fetch('/api/describe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image, deepseek_key: deepseekKey || undefined })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error);
+
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = `
+                    <div style="padding:20px;font-family:var(--font-mono);line-height:1.8;">
+                        <div style="font-size:0.7rem;color:var(--neon-cyan);letter-spacing:2px;margin-bottom:12px;">▸ 识别结果 · ${data.provider}</div>
+                        <div style="color:#fff;font-size:0.95rem;letter-spacing:0.5px;">${data.description}</div>
+                        <button onclick="useDescription('${data.description.replace(/'/g, "\\'")}')" class="result-action-btn" style="margin-top:16px;">复制到文生图</button>
+                    </div>`;
+            } catch (err) {
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = `<div class="error-box">● ${err.message}</div>`;
+            } finally {
+                btn.classList.remove('loading'); btn.disabled = false;
+            }
+        }
+
+        function useDescription(desc) {
+            document.querySelector('[data-tab="image"]').click();
+            document.getElementById('image-prompt').value = desc;
+            document.getElementById('generate').scrollIntoView({ behavior: 'smooth' });
+        }
 
         /* ===== Scroll Animation ===== */
         const observer = new IntersectionObserver((entries) => {
