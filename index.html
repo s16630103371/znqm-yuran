@@ -308,6 +308,26 @@
             font-size: 1rem; letter-spacing: 1px;
         }
 
+        /* ===== AI Describe Button ===== */
+        .ai-desc-btn {
+            display: inline-block; margin-top: 8px;
+            padding: 6px 14px;
+            background: transparent;
+            border: 1px solid var(--neon-purple);
+            color: var(--neon-purple);
+            font-family: var(--font-mono);
+            font-size: 0.75rem; letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .ai-desc-btn:hover {
+            background: rgba(180, 0, 255, 0.08);
+            box-shadow: 0 0 15px rgba(180, 0, 255, 0.2);
+        }
+        .ai-desc-btn.loading {
+            opacity: 0.5; pointer-events: none;
+        }
+
         /* ===== Stats Bar ===== */
         .stats-bar {
             position: relative; z-index: 1;
@@ -1047,6 +1067,7 @@
                 <div class="prompt-input-group" style="margin-top:16px;">
                     <div class="prompt-label">&gt; PROMPT</div>
                     <textarea class="prompt-input" id="img2img-prompt" placeholder="描述你希望生成的新画面..." maxlength="1000"></textarea>
+                    <button class="ai-desc-btn" onclick="aiFillPrompt('img2img')">🤖 AI 生成描述</button>
                 </div>
                 <button class="generate-btn" onclick="generateImg2Img()">
                     <span class="btn-text">▸ 生成新图片</span>
@@ -1076,6 +1097,7 @@
                 <div class="prompt-input-group" style="margin-top:16px;">
                     <div class="prompt-label">&gt; PROMPT</div>
                     <textarea class="prompt-input" id="img2video-prompt" placeholder="描述视频风格、转场效果..." maxlength="500"></textarea>
+                    <button class="ai-desc-btn" onclick="aiFillPrompt('img2video')">🤖 AI 生成描述</button>
                 </div>
                 <button class="generate-btn" onclick="generateImg2Video()">
                     <span class="btn-text">▸ 生成视频帧序列</span>
@@ -1409,6 +1431,34 @@
         }
         function stopFrameSequence() {
             if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; }
+        }
+
+        /* ===== AI Fill Prompt ===== */
+        async function aiFillPrompt(mode) {
+            const image = uploadedImages[mode];
+            if (!image) { alert('请先上传图片'); return; }
+
+            const textarea = document.getElementById(`${mode}-prompt`);
+            const btns = document.querySelectorAll(`#panel-${mode} .ai-desc-btn`);
+            btns.forEach(b => b.classList.add('loading'));
+            const orig = btns[0]?.textContent;
+            if (btns[0]) btns[0].textContent = '⏳ AI 分析中...';
+
+            try {
+                const resp = await fetch('/api/describe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: Array.isArray(image) ? image[0] : image })
+                });
+                const data = await resp.json();
+                if (!data.success) throw new Error(data.error);
+                textarea.value = data.description;
+            } catch (err) {
+                alert('AI 描述失败: ' + err.message);
+            } finally {
+                btns.forEach(b => b.classList.remove('loading'));
+                if (btns[0]) btns[0].textContent = orig || '🤖 AI 生成描述';
+            }
         }
 
         /* ===== Scroll Animation ===== */
