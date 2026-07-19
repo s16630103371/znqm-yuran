@@ -1050,16 +1050,10 @@
                 <div class="option-label">图片生成服务商</div>
                 <select class="option-select" id="provider-image" onchange="onProviderChange()">
                     <option value="free" selected>免费体验 (每日5次)</option>
-                    <option value="dashscope">阿里云百炼 (通义万相)</option>
                     <option value="replicate">Replicate</option>
                 </select>
             </div>
 
-            <div class="api-input-group">
-                <label>阿里云百炼 Key</label>
-                <input type="password" id="api-key-dashscope" placeholder="输入阿里云百炼 API Key...">
-                <span class="api-status-dot disconnected" id="ds-api-status"></span>
-            </div>
             <div class="api-input-group">
                 <label>Replicate Key</label>
                 <input type="password" id="api-key-replicate" placeholder="输入 Replicate API Token...">
@@ -1077,9 +1071,6 @@
                 <strong>免费体验</strong>：无需任何 Key，每日 5 次真实 AI 生成。
                 由 <a href="https://pollinations.ai" target="_blank">Pollinations.ai</a> (flux 模型) 提供算力，
                 经 Cloudflare Worker 代理分发，每 IP 每日限 5 次。
-            </p>
-            <p style="margin-top: 8px;">
-                <strong>阿里云百炼（通义万相）</strong>：需自有 Key，国内直连，速度快。
             </p>
             <p style="margin-top: 8px;">
                 <strong>Replicate</strong>：需自有 Token，模型丰富。
@@ -1282,73 +1273,6 @@
 
         /* ===== Real API Generation ===== */
 
-        // -- DashScope (阿里云百炼 通义万相) --
-        async function callDashScope(prompt, options) {
-            const apiKey = localStorage.getItem('znqm_dashscope_key');
-            if (!apiKey) throw new Error('请先配置阿里云百炼 API Key');
-
-            const size = options.size || '1024*1024';
-            const n = options.count || 1;
-
-            // Build style-enhanced prompt
-            const stylePrompt = {
-                'photorealistic': '写实摄影风格，超高清，8K分辨率，',
-                'anime': '二次元动漫风格，精美插画，',
-                'cyberpunk': '赛博朋克风格，霓虹灯光，未来都市，',
-                'oil-painting': '古典油画风格，厚重笔触，艺术感，',
-                '3d-render': '3D渲染风格，C4D，Octane渲染，',
-                'pixel-art': '像素艺术风格，16位复古游戏，'
-            };
-            const fullPrompt = (stylePrompt[options.style] || '') + prompt;
-
-            // Create task
-            const createResp = await fetch(
-                'https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis',
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json',
-                        'X-DashScope-Async': 'enable'
-                    },
-                    body: JSON.stringify({
-                        model: 'wanx-v1',
-                        input: { prompt: fullPrompt },
-                        parameters: { size, n, style: '<auto>' }
-                    })
-                }
-            );
-
-            if (!createResp.ok) {
-                const err = await createResp.json().catch(() => ({}));
-                throw new Error(err.message || err.code || `DashScope HTTP ${createResp.status}`);
-            }
-
-            const createData = await createResp.json();
-            if (!createData.output?.task_id) {
-                throw new Error('DashScope 未返回任务 ID');
-            }
-
-            // Poll task
-            const taskId = createData.output.task_id;
-            for (let i = 0; i < 90; i++) {
-                await new Promise(r => setTimeout(r, 2000));
-                const pollResp = await fetch(
-                    `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`,
-                    { headers: { 'Authorization': `Bearer ${apiKey}` } }
-                );
-                const pollData = await pollResp.json();
-
-                if (pollData.output?.task_status === 'SUCCEEDED') {
-                    return pollData.output.results.map(r => r.url);
-                }
-                if (pollData.output?.task_status === 'FAILED') {
-                    throw new Error(pollData.output.message || '生成失败');
-                }
-            }
-            throw new Error('生成超时，请重试');
-        }
-
         // -- Replicate --
         async function callReplicate(prompt, options) {
             const apiKey = localStorage.getItem('znqm_replicate_key');
@@ -1542,14 +1466,12 @@
             resultContainer.classList.add('loading-state');
 
             // Free mode: uses site-hosted Worker, no key needed
-            // Paid modes: requires API key, falls back to simulated
+            // Replicate mode: requires API key, falls back to simulated
             let keyNeeded;
             if (provider === 'free') {
-                keyNeeded = 'free'; // always valid
+                keyNeeded = 'free';
             } else {
-                keyNeeded = provider === 'dashscope'
-                    ? localStorage.getItem('znqm_dashscope_key')
-                    : localStorage.getItem('znqm_replicate_key');
+                keyNeeded = localStorage.getItem('znqm_replicate_key');
             }
 
             if (!keyNeeded) {
@@ -1574,8 +1496,6 @@
                 let imageUrls;
                 if (provider === 'free') {
                     imageUrls = await callFreeWorker(prompt, options);
-                } else if (provider === 'dashscope') {
-                    imageUrls = await callDashScope(prompt, options);
                 } else {
                     imageUrls = await callReplicate(prompt, options);
                 }
@@ -1806,19 +1726,6 @@
         }
 
         /* ===== API Key Management ===== */
-        document.getElementById('api-key-dashscope').addEventListener('input', function() {
-            const dot = document.getElementById('ds-api-status');
-            if (this.value.trim()) {
-                dot.classList.add('connected');
-                dot.classList.remove('disconnected');
-                localStorage.setItem('znqm_dashscope_key', this.value);
-            } else {
-                dot.classList.add('disconnected');
-                dot.classList.remove('connected');
-                localStorage.removeItem('znqm_dashscope_key');
-            }
-        });
-
         document.getElementById('api-key-replicate').addEventListener('input', function() {
             const dot = document.getElementById('rp-api-status');
             if (this.value.trim()) {
@@ -1834,21 +1741,12 @@
 
         function onProviderChange() {
             const provider = document.getElementById('provider-image').value;
-            const dsGroup = document.getElementById('api-key-dashscope').parentElement;
             const rpGroup = document.getElementById('api-key-replicate').parentElement;
-            dsGroup.style.display = provider === 'dashscope' ? '' : 'none';
             rpGroup.style.display = provider === 'replicate' ? '' : 'none';
         }
 
         // Load saved keys
         (function() {
-            const dsKey = localStorage.getItem('znqm_dashscope_key');
-            if (dsKey) {
-                document.getElementById('api-key-dashscope').value = dsKey;
-                const dot = document.getElementById('ds-api-status');
-                dot.classList.add('connected');
-                dot.classList.remove('disconnected');
-            }
             const rpKey = localStorage.getItem('znqm_replicate_key');
             if (rpKey) {
                 document.getElementById('api-key-replicate').value = rpKey;
