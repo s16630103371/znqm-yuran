@@ -1049,6 +1049,7 @@
             <div class="option-group" style="margin-bottom:16px;">
                 <div class="option-label">图片生成服务商</div>
                 <select class="option-select" id="provider-image" onchange="onProviderChange()">
+                    <option value="free" selected>免费体验 (每日5次)</option>
                     <option value="dashscope">阿里云百炼 (通义万相)</option>
                     <option value="replicate">Replicate</option>
                 </select>
@@ -1073,9 +1074,11 @@
         <div class="api-guide">
             <h4>已支持的 API 服务商</h4>
             <p>
+                <strong>免费体验</strong>：无需任何 Key，每日 5 次真实 AI 生成。由站点托管方提供算力支持。
+            </p>
+            <p style="margin-top: 8px;">
                 <strong>阿里云百炼（通义万相）</strong>：国内直连，速度快。去
                 <a href="https://bailian.console.aliyun.com/" target="_blank">百炼控制台</a> 创建 API Key。
-                模型：<code>wanx-v1</code>，约 ¥0.2-0.4/张。
             </p>
             <p style="margin-top: 8px;">
                 <strong>Replicate</strong>：国际版，模型丰富。去
@@ -1408,6 +1411,118 @@
             throw new Error('生成超时，请重试');
         }
 
+        // -- Free tier: calls site-hosted Cloudflare Worker --
+        async function callFreeWorker(prompt, options) {
+            const resp = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt,
+                    size: options.size,
+                    style: options.style,
+                    count: options.count
+                })
+            });
+
+            const data = await resp.json();
+            if (!data.success) {
+                throw new Error(data.error || '免费生成失败');
+            }
+            return data.images;
+        }
+
+        // -- Simulated fallback (when no API key) --
+        async function generateSimulatedImage(prompt) {
+            const style = document.getElementById('image-style').value;
+            const size = document.getElementById('image-size').value.split('x');
+            const count = parseInt(document.getElementById('image-count').value);
+            const resultContainer = document.getElementById('image-result-container');
+            const hueMap = {
+                'photorealistic': 200, 'anime': 320, 'cyberpunk': 180,
+                'oil-painting': 30, '3d-render': 210, 'pixel-art': 270
+            };
+            const hue = hueMap[style] || 180;
+
+            await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
+
+            const images = [];
+            for (let i = 0; i < count; i++) {
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.min(parseInt(size[0]), 800);
+                canvas.height = Math.min(parseInt(size[1]), 800);
+                const ctx = canvas.getContext('2d');
+
+                const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+                grad.addColorStop(0, `hsl(${hue + i * 15}, 80%, 5%)`);
+                grad.addColorStop(0.5, `hsl(${hue + 30 + i * 10}, 50%, 12%)`);
+                grad.addColorStop(1, `hsl(${hue - 30 - i * 10}, 60%, 7%)`);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Grid
+                ctx.strokeStyle = `hsla(${hue}, 90%, 60%, 0.05)`;
+                ctx.lineWidth = 0.5;
+                for (let x = 0; x < canvas.width; x += 30) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+                for (let y = 0; y < canvas.height; y += 30) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+
+                const cx = canvas.width / 2, cy = canvas.height / 2;
+                const r = Math.min(cx, cy) * 0.5;
+                for (let j = 0; j < 3; j++) {
+                    ctx.beginPath();
+                    for (let k = 0; k < 6; k++) {
+                        const angle = k * Math.PI / 3;
+                        const x = cx + r * (1 - j * 0.25) * Math.cos(angle);
+                        const y = cy + r * (1 - j * 0.25) * Math.sin(angle);
+                        k === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+                    }
+                    ctx.closePath();
+                    ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${0.12 + j * 0.12})`;
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+
+                const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.25);
+                glow.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.3)`);
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.beginPath(); ctx.arc(cx, cy, r * 0.25, 0, Math.PI * 2); ctx.fill();
+
+                // Title
+                const styleLabel = { 'photorealistic': 'PHOTOREALISTIC', 'anime': 'ANIME', 'cyberpunk': 'CYBERPUNK', 'oil-painting': 'OIL PAINTING', '3d-render': '3D RENDER', 'pixel-art': 'PIXEL ART' };
+                ctx.font = `bold ${Math.min(canvas.width, canvas.height) * 0.035}px "Courier New", monospace`;
+                ctx.textAlign = 'center';
+                ctx.fillStyle = `hsla(${hue}, 100%, 65%, 0.7)`;
+                ctx.fillText(styleLabel[style] || style.toUpperCase(), cx, cy - 10);
+
+                ctx.font = `${Math.min(canvas.width, canvas.height) * 0.022}px "Courier New", monospace`;
+                ctx.fillStyle = 'rgba(255,255,255,0.35)';
+                const txt = prompt.length > 35 ? prompt.substring(0, 35) + '...' : prompt;
+                ctx.fillText(txt, cx, cy + Math.min(canvas.width, canvas.height) * 0.05);
+
+                images.push(canvas.toDataURL('image/png'));
+            }
+
+            // Store first for download
+            document.getElementById('gen-image-data')?.remove();
+            const hi = document.createElement('input');
+            hi.type = 'hidden'; hi.id = 'gen-image-data';
+            hi.value = images[0];
+            document.body.appendChild(hi);
+
+            const templateNote = `
+                <div style="text-align:center;padding:12px 0;margin-bottom:16px;border:1px dashed rgba(0,255,255,0.2);border-radius:4px;">
+                    <span style="font-family:var(--font-mono);font-size:0.7rem;letter-spacing:1px;color:var(--neon-cyan);">⚡ 这是模拟生成效果</span>
+                    <span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--text-secondary);margin-left:8px;">在下方 API 配置区填入 Key 即可启用真实 AI 生成</span>
+                </div>`;
+
+            resultContainer.classList.remove('loading-state');
+            resultContainer.innerHTML = templateNote + images.map(url =>
+                `<img src="${url}" alt="Simulated" class="result-image" style="margin-bottom:12px;" loading="lazy">`
+            ).join('');
+
+            updateCounter();
+        }
+
         async function generateImage() {
             const prompt = document.getElementById('image-prompt').value.trim();
             if (!prompt) {
@@ -1424,6 +1539,26 @@
             btn.disabled = true;
             resultPanel.classList.add('show');
             resultContainer.classList.add('loading-state');
+
+            // Free mode: uses site-hosted Worker, no key needed
+            // Paid modes: requires API key, falls back to simulated
+            let keyNeeded;
+            if (provider === 'free') {
+                keyNeeded = 'free'; // always valid
+            } else {
+                keyNeeded = provider === 'dashscope'
+                    ? localStorage.getItem('znqm_dashscope_key')
+                    : localStorage.getItem('znqm_replicate_key');
+            }
+
+            if (!keyNeeded) {
+                resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">未检测到 API Key，切换为模拟模式...</span>';
+                await generateSimulatedImage(prompt);
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                return;
+            }
+
             resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">正在调用 AI 模型...</span>';
 
             try {
@@ -1436,7 +1571,9 @@
                 resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">AI 正在生成中，请稍候...</span>';
 
                 let imageUrls;
-                if (provider === 'dashscope') {
+                if (provider === 'free') {
+                    imageUrls = await callFreeWorker(prompt, options);
+                } else if (provider === 'dashscope') {
                     imageUrls = await callDashScope(prompt, options);
                 } else {
                     imageUrls = await callReplicate(prompt, options);
