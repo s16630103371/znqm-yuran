@@ -1046,35 +1046,45 @@
                 <h2 class="section-title" style="font-size: 1.5rem;">API 配置</h2>
             </div>
 
+            <div class="option-group" style="margin-bottom:16px;">
+                <div class="option-label">图片生成服务商</div>
+                <select class="option-select" id="provider-image" onchange="onProviderChange()">
+                    <option value="dashscope">阿里云百炼 (通义万相)</option>
+                    <option value="replicate">Replicate</option>
+                </select>
+            </div>
+
             <div class="api-input-group">
-                <label>图片 API Key</label>
-                <input type="password" id="api-key-image" placeholder="输入你的 AI 图片 API Key...">
-                <span class="api-status-dot disconnected" id="img-api-status"></span>
+                <label>阿里云百炼 Key</label>
+                <input type="password" id="api-key-dashscope" placeholder="输入阿里云百炼 API Key...">
+                <span class="api-status-dot disconnected" id="ds-api-status"></span>
             </div>
             <div class="api-input-group">
-                <label>视频 API Key</label>
-                <input type="password" id="api-key-video" placeholder="输入你的 AI 视频 API Key...">
-                <span class="api-status-dot disconnected" id="vid-api-status"></span>
+                <label>Replicate Key</label>
+                <input type="password" id="api-key-replicate" placeholder="输入 Replicate API Token...">
+                <span class="api-status-dot disconnected" id="rp-api-status"></span>
             </div>
             <p style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); margin-top: 12px;">
-                API Key 仅保存在你的浏览器本地，不会上传到任何服务器。
+                API Key 仅保存在浏览器本地，生成时直接请求 AI 服务商，不经过任何中间服务器。
             </p>
         </div>
 
         <!-- API Guide -->
         <div class="api-guide">
-            <h4>如何获取 API Key？</h4>
+            <h4>已支持的 API 服务商</h4>
             <p>
-                图片生成推荐使用 <a href="https://replicate.com" target="_blank">Replicate</a> 的
-                <code>stability-ai/sdxl</code> 或 <code>black-forest-labs/flux-dev</code> 模型，
-                注册后在 <a href="https://replicate.com/account/api-tokens" target="_blank">API Tokens</a> 页面获取 Key。
+                <strong>阿里云百炼（通义万相）</strong>：国内直连，速度快。去
+                <a href="https://bailian.console.aliyun.com/" target="_blank">百炼控制台</a> 创建 API Key。
+                模型：<code>wanx-v1</code>，约 ¥0.2-0.4/张。
             </p>
             <p style="margin-top: 8px;">
-                视频生成推荐 <a href="https://replicate.com" target="_blank">Replicate</a> 的
-                <code>lucataco/hotshot-xl</code> 或 <code>stability-ai/stable-video-diffusion</code>，
-                使用同一个 API Key 即可。也支持
-                <a href="https://openai.com" target="_blank">OpenAI</a> DALL·E / Sora 和
-                <a href="https://stability.ai" target="_blank">Stability AI</a> 的 API。
+                <strong>Replicate</strong>：国际版，模型丰富。去
+                <a href="https://replicate.com/account/api-tokens" target="_blank">Replicate Tokens</a> 获取。
+                模型：<code>black-forest-labs/flux-schnell</code>，约 $0.003/张。
+            </p>
+            <p style="margin-top: 8px;">
+                视频生成目前用量较少，可先使用模拟模式体验界面。接入 Replicate 的
+                <code>stability-ai/stable-video-diffusion</code> 即可启用真实视频生成。
             </p>
         </div>
     </section>
@@ -1266,7 +1276,138 @@
         }
         document.getElementById('stat-generated').textContent = generationCount;
 
-        /* ===== Simulated Generation ===== */
+        /* ===== Real API Generation ===== */
+
+        // -- DashScope (阿里云百炼 通义万相) --
+        async function callDashScope(prompt, options) {
+            const apiKey = localStorage.getItem('znqm_dashscope_key');
+            if (!apiKey) throw new Error('请先配置阿里云百炼 API Key');
+
+            const size = options.size || '1024*1024';
+            const n = options.count || 1;
+
+            // Build style-enhanced prompt
+            const stylePrompt = {
+                'photorealistic': '写实摄影风格，超高清，8K分辨率，',
+                'anime': '二次元动漫风格，精美插画，',
+                'cyberpunk': '赛博朋克风格，霓虹灯光，未来都市，',
+                'oil-painting': '古典油画风格，厚重笔触，艺术感，',
+                '3d-render': '3D渲染风格，C4D，Octane渲染，',
+                'pixel-art': '像素艺术风格，16位复古游戏，'
+            };
+            const fullPrompt = (stylePrompt[options.style] || '') + prompt;
+
+            // Create task
+            const createResp = await fetch(
+                'https://dashscope.aliyuncs.com/api/v1/services/aigc/text2image/image-synthesis',
+                {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                        'X-DashScope-Async': 'enable'
+                    },
+                    body: JSON.stringify({
+                        model: 'wanx-v1',
+                        input: { prompt: fullPrompt },
+                        parameters: { size, n, style: '<auto>' }
+                    })
+                }
+            );
+
+            if (!createResp.ok) {
+                const err = await createResp.json().catch(() => ({}));
+                throw new Error(err.message || err.code || `DashScope HTTP ${createResp.status}`);
+            }
+
+            const createData = await createResp.json();
+            if (!createData.output?.task_id) {
+                throw new Error('DashScope 未返回任务 ID');
+            }
+
+            // Poll task
+            const taskId = createData.output.task_id;
+            for (let i = 0; i < 90; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const pollResp = await fetch(
+                    `https://dashscope.aliyuncs.com/api/v1/tasks/${taskId}`,
+                    { headers: { 'Authorization': `Bearer ${apiKey}` } }
+                );
+                const pollData = await pollResp.json();
+
+                if (pollData.output?.task_status === 'SUCCEEDED') {
+                    return pollData.output.results.map(r => r.url);
+                }
+                if (pollData.output?.task_status === 'FAILED') {
+                    throw new Error(pollData.output.message || '生成失败');
+                }
+            }
+            throw new Error('生成超时，请重试');
+        }
+
+        // -- Replicate --
+        async function callReplicate(prompt, options) {
+            const apiKey = localStorage.getItem('znqm_replicate_key');
+            if (!apiKey) throw new Error('请先配置 Replicate API Token');
+
+            const sizeW = parseInt(options.size.split('x')[0]);
+            const sizeH = parseInt(options.size.split('x')[1]);
+
+            const stylePrompt = {
+                'photorealistic': 'photorealistic, ultra realistic, 8k, ',
+                'anime': 'anime style, studio ghibli, vibrant, ',
+                'cyberpunk': 'cyberpunk, neon lights, futuristic, blade runner aesthetic, ',
+                'oil-painting': 'oil painting, artistic, textured brushstrokes, ',
+                '3d-render': '3D render, unreal engine, octane render, ',
+                'pixel-art': 'pixel art, 16-bit, retro game style, '
+            };
+            const fullPrompt = (stylePrompt[options.style] || '') + prompt;
+
+            // Create prediction
+            const predResp = await fetch('https://api.replicate.com/v1/predictions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: 'black-forest-labs/flux-schnell',
+                    input: {
+                        prompt: fullPrompt,
+                        width: sizeW,
+                        height: sizeH,
+                        num_outputs: options.count || 1,
+                        num_inference_steps: 4
+                    }
+                })
+            });
+
+            if (!predResp.ok) {
+                const err = await predResp.json().catch(() => ({}));
+                throw new Error(err.detail || `Replicate HTTP ${predResp.status}`);
+            }
+
+            const predData = await predResp.json();
+
+            // Poll prediction
+            for (let i = 0; i < 60; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                const pollResp = await fetch(
+                    `https://api.replicate.com/v1/predictions/${predData.id}`,
+                    { headers: { 'Authorization': `Bearer ${apiKey}` } }
+                );
+                const pollData = await pollResp.json();
+
+                if (pollData.status === 'succeeded') {
+                    return pollData.output;
+                }
+                if (pollData.status === 'failed' || pollData.status === 'canceled') {
+                    throw new Error(pollData.error || '生成失败');
+                }
+            }
+            throw new Error('生成超时，请重试');
+        }
+
         async function generateImage() {
             const prompt = document.getElementById('image-prompt').value.trim();
             if (!prompt) {
@@ -1277,122 +1418,77 @@
             const btn = document.getElementById('generate-image-btn');
             const resultPanel = document.getElementById('image-result');
             const resultContainer = document.getElementById('image-result-container');
+            const provider = document.getElementById('provider-image').value;
 
             btn.classList.add('loading');
             btn.disabled = true;
             resultPanel.classList.add('show');
             resultContainer.classList.add('loading-state');
-            resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">生成中...</span>';
+            resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">正在调用 AI 模型...</span>';
 
-            // Simulate generation delay
-            await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+            try {
+                const options = {
+                    size: document.getElementById('image-size').value,
+                    style: document.getElementById('image-style').value,
+                    count: parseInt(document.getElementById('image-count').value)
+                };
 
-            // Generate a placeholder image based on the style
-            const style = document.getElementById('image-style').value;
-            const hueMap = {
-                'photorealistic': 200, 'anime': 320, 'cyberpunk': 180,
-                'oil-painting': 30, '3d-render': 210, 'pixel-art': 270
-            };
-            const hue = hueMap[style] || 180;
-            const size = document.getElementById('image-size').value.split('x');
-            const w = parseInt(size[0]);
-            const h = parseInt(size[1]);
+                resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">AI 正在生成中，请稍候...</span>';
 
-            // Create a procedural placeholder image
-            const canvas = document.createElement('canvas');
-            canvas.width = Math.min(w, 800);
-            canvas.height = Math.min(h, 800);
-            const ctx = canvas.getContext('2d');
-
-            // Gradient background
-            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-            gradient.addColorStop(0, `hsl(${hue}, 80%, 5%)`);
-            gradient.addColorStop(0.5, `hsl(${hue + 30}, 60%, 10%)`);
-            gradient.addColorStop(1, `hsl(${hue - 30}, 70%, 8%)`);
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Grid
-            ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.06)`;
-            ctx.lineWidth = 0.5;
-            const gridSize = 30;
-            for (let x = 0; x < canvas.width; x += gridSize) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
-            }
-            for (let y = 0; y < canvas.height; y += gridSize) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
-            }
-
-            // Decorative shapes
-            ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.3)`;
-            ctx.lineWidth = 1.5;
-            const cx = canvas.width / 2, cy = canvas.height / 2;
-            const r = Math.min(cx, cy) * 0.6;
-
-            // Concentric hexagon
-            for (let i = 0; i < 3; i++) {
-                const radius = r * (1 - i * 0.2);
-                ctx.beginPath();
-                for (let j = 0; j < 6; j++) {
-                    const angle = j * Math.PI / 3 - Math.PI / 6;
-                    const x = cx + radius * Math.cos(angle);
-                    const y = cy + radius * Math.sin(angle);
-                    if (j === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
+                let imageUrls;
+                if (provider === 'dashscope') {
+                    imageUrls = await callDashScope(prompt, options);
+                } else {
+                    imageUrls = await callReplicate(prompt, options);
                 }
-                ctx.closePath();
-                ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${0.15 + i * 0.1})`;
-                ctx.stroke();
+
+                if (!imageUrls || imageUrls.length === 0) {
+                    throw new Error('未返回生成结果');
+                }
+
+                // Store first image as data URL for download
+                try {
+                    const imgResp = await fetch(imageUrls[0]);
+                    const blob = await imgResp.blob();
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        document.getElementById('gen-image-data')?.remove();
+                        const hi = document.createElement('input');
+                        hi.type = 'hidden'; hi.id = 'gen-image-data';
+                        hi.value = reader.result;
+                        document.body.appendChild(hi);
+                    };
+                    reader.readAsDataURL(blob);
+                } catch (e) {
+                    // Cross-origin fallback: store URL directly
+                    document.getElementById('gen-image-data')?.remove();
+                    const hi = document.createElement('input');
+                    hi.type = 'hidden'; hi.id = 'gen-image-data';
+                    hi.value = imageUrls[0];
+                    document.body.appendChild(hi);
+                }
+
+                const imagesHtml = imageUrls.map(url =>
+                    `<img src="${url}" alt="AI Generated" class="result-image" style="margin-bottom:12px;" loading="lazy">`
+                ).join('');
+
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = imagesHtml;
+
+                updateCounter();
+            } catch (err) {
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = `
+                    <div style="text-align:center; padding:40px;">
+                        <div style="font-family:var(--font-mono); color:#ff3366; font-size:1rem; letter-spacing:1px;">● 生成失败</div>
+                        <div style="font-family:var(--font-mono); color:var(--text-secondary); font-size:0.75rem; margin-top:12px; max-width:400px;">${err.message}</div>
+                        <button onclick="document.getElementById('image-result').classList.remove('show');document.getElementById('image-result-container').innerHTML='';"
+                            style="margin-top:16px;padding:6px 16px;background:transparent;border:1px solid var(--text-secondary);color:var(--text-secondary);font-family:var(--font-mono);font-size:0.7rem;cursor:pointer;">关闭</button>
+                    </div>`;
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
             }
-
-            // Glowing center circle
-            const centerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.3);
-            centerGlow.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.4)`);
-            centerGlow.addColorStop(1, 'transparent');
-            ctx.fillStyle = centerGlow;
-            ctx.beginPath(); ctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2); ctx.fill();
-
-            // Decorative particles
-            for (let i = 0; i < 30; i++) {
-                const px = cx + (Math.random() - 0.5) * r * 1.2;
-                const py = cy + (Math.random() - 0.5) * r * 1.2;
-                const ps = Math.random() * 3 + 1;
-                ctx.beginPath(); ctx.arc(px, py, ps, 0, Math.PI * 2);
-                ctx.fillStyle = `hsla(${hue}, 100%, 70%, ${Math.random() * 0.6})`;
-                ctx.fill();
-            }
-
-            // Style label
-            const styleLabels = {
-                'photorealistic': 'PHOTOREALISTIC', 'anime': 'ANIME STYLE',
-                'cyberpunk': 'CYBERPUNK', 'oil-painting': 'OIL PAINTING',
-                '3d-render': '3D RENDER', 'pixel-art': 'PIXEL ART'
-            };
-            ctx.font = `${Math.min(canvas.width, canvas.height) * 0.03}px "Courier New", monospace`;
-            ctx.textAlign = 'center';
-            ctx.fillStyle = `hsla(${hue}, 100%, 70%, 0.8)`;
-            ctx.fillText(styleLabels[style] || style.toUpperCase(), cx, cy + r * 0.5);
-
-            // Prompt label
-            ctx.font = `${Math.min(canvas.width, canvas.height) * 0.025}px "Courier New", monospace`;
-            ctx.fillStyle = 'rgba(255,255,255,0.5)';
-            const words = prompt.length > 40 ? prompt.substring(0, 40) + '...' : prompt;
-            ctx.fillText('"' + words + '"', cx, cy + r * 0.5 + Math.min(canvas.width, canvas.height) * 0.06);
-
-            const dataUrl = canvas.toDataURL('image/png');
-            document.getElementById('gen-image-data')?.remove();
-            const hiddenInput = document.createElement('input');
-            hiddenInput.type = 'hidden';
-            hiddenInput.id = 'gen-image-data';
-            hiddenInput.value = dataUrl;
-            document.body.appendChild(hiddenInput);
-
-            resultContainer.classList.remove('loading-state');
-            resultContainer.innerHTML = `<img src="${dataUrl}" alt="Generated Image" class="result-image">`;
-
-            btn.classList.remove('loading');
-            btn.disabled = false;
-            updateCounter();
         }
 
         async function generateVideo() {
@@ -1405,58 +1501,162 @@
             const btn = document.getElementById('generate-video-btn');
             const resultPanel = document.getElementById('video-result');
             const resultContainer = document.getElementById('video-result-container');
+            const duration = parseInt(document.getElementById('video-duration').value);
+            const resolution = document.getElementById('video-resolution').value;
+
+            const replicateKey = localStorage.getItem('znqm_replicate_key');
 
             btn.classList.add('loading');
             btn.disabled = true;
             resultPanel.classList.add('show');
             resultContainer.classList.add('loading-state');
-            resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--ff00ff);font-size:0.9rem;letter-spacing:2px;">渲染中...</span>';
 
-            // Simulate video generation (longer delay)
-            await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
+            if (!replicateKey) {
+                // Fallback: simulated video
+                resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:#ff00ff;font-size:0.9rem;letter-spacing:2px;">模拟渲染中...</span>';
+                await new Promise(r => setTimeout(r, 3000));
 
-            // Create SVG-based video placeholder
-            const duration = parseInt(document.getElementById('video-duration').value);
-
-            resultContainer.classList.remove('loading-state');
-            resultContainer.innerHTML = `
-                <div style="position:relative; width:100%; max-width:640px; aspect-ratio:16/9; background:linear-gradient(135deg, #0a0a1a, #200030); display:flex; align-items:center; justify-content:center;
-                    border: 1px solid rgba(180,0,255,0.3); border-radius: 4px;">
-                    <div style="text-align:center;">
-                        <div style="font-size: 4rem; color: rgba(180,0,255,0.3);">▶</div>
-                        <div style="font-family:var(--font-mono); font-size:0.7rem; letter-spacing:2px; color:rgba(255,255,255,0.4); margin-top:12px;">
-                            VIDEO · ${duration}s · ${document.getElementById('video-resolution').value}
+                resultContainer.classList.remove('loading-state');
+                resultContainer.innerHTML = `
+                    <div style="position:relative;width:100%;max-width:640px;aspect-ratio:16/9;background:linear-gradient(135deg,#0a0a1a,#200030);display:flex;align-items:center;justify-content:center;border:1px solid rgba(180,0,255,0.3);border-radius:4px;">
+                        <div style="text-align:center;">
+                            <div style="font-size:3rem;color:rgba(180,0,255,0.4);">▶</div>
+                            <div style="font-family:var(--font-mono);font-size:0.7rem;letter-spacing:2px;color:rgba(255,255,255,0.5);margin-top:10px;">VIDEO · ${duration}s · ${resolution}</div>
+                            <div style="font-family:var(--font-mono);font-size:0.6rem;color:var(--text-secondary);margin-top:6px;max-width:280px;">
+                                "${prompt.length > 40 ? prompt.substring(0, 40) + '...' : prompt}"
+                            </div>
+                            <div style="font-family:var(--font-mono);font-size:0.55rem;color:rgba(180,0,255,0.6);margin-top:10px;">
+                                接入 Replicate Key 即可启用真实视频生成
+                            </div>
                         </div>
-                        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-secondary); margin-top:8px; max-width:300px;">
-                            "${prompt.length > 50 ? prompt.substring(0, 50) + '...' : prompt}"
-                        </div>
-                    </div>
-                    <div style="position:absolute; bottom:12px; right:16px;
-                        font-family:var(--font-mono); font-size:0.6rem; letter-spacing:1px; color:rgba(180,0,255,0.5);">
-                        AI GENERATED
-                    </div>
-                </div>
-            `;
+                    </div>`;
+            } else {
+                // Real Replicate video generation via stable-video-diffusion
+                try {
+                    resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:#ff00ff;font-size:0.9rem;letter-spacing:2px;">正在调用视频模型...</span>';
+
+                    // Step 1: Generate a keyframe image first
+                    const imgPred = await fetch('https://api.replicate.com/v1/predictions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${replicateKey}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: 'black-forest-labs/flux-schnell',
+                            input: {
+                                prompt: prompt + ', cinematic, 4k, video keyframe',
+                                width: 1024, height: 576,
+                                num_inference_steps: 4
+                            }
+                        })
+                    });
+                    const imgData = await imgPred.json();
+
+                    resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:#ff00ff;font-size:0.9rem;letter-spacing:2px;">正在生成关键帧...</span>';
+
+                    // Poll for image
+                    let imgUrl;
+                    for (let i = 0; i < 60; i++) {
+                        await new Promise(r => setTimeout(r, 2000));
+                        const poll = await fetch(
+                            `https://api.replicate.com/v1/predictions/${imgData.id}`,
+                            { headers: { 'Authorization': `Bearer ${replicateKey}` } }
+                        );
+                        const pData = await poll.json();
+                        if (pData.status === 'succeeded') { imgUrl = pData.output[0]; break; }
+                        if (pData.status === 'failed') throw new Error(pData.error || '关键帧生成失败');
+                    }
+
+                    if (!imgUrl) throw new Error('关键帧生成超时');
+
+                    // Step 2: Generate video from image
+                    resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:#ff00ff;font-size:0.9rem;letter-spacing:2px;">正在生成视频...</span>';
+
+                    const vidPred = await fetch('https://api.replicate.com/v1/predictions', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${replicateKey}`,
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            model: 'stability-ai/stable-video-diffusion',
+                            input: {
+                                cond_image: imgUrl,
+                                video_length: duration > 5 ? '25_frames_with_svd_xt' : '14_frames_with_svd',
+                                sizing_strategy: 'maintain_aspect_ratio',
+                                frames_per_second: 6
+                            }
+                        })
+                    });
+                    const vidData = await vidPred.json();
+
+                    // Poll for video
+                    let vidUrl;
+                    for (let i = 0; i < 90; i++) {
+                        await new Promise(r => setTimeout(r, 3000));
+                        const poll = await fetch(
+                            `https://api.replicate.com/v1/predictions/${vidData.id}`,
+                            { headers: { 'Authorization': `Bearer ${replicateKey}` } }
+                        );
+                        const pData = await poll.json();
+                        if (pData.status === 'succeeded') { vidUrl = pData.output; break; }
+                        if (pData.status === 'failed') throw new Error(pData.error || '视频生成失败');
+                    }
+
+                    if (!vidUrl) throw new Error('视频生成超时');
+
+                    resultContainer.classList.remove('loading-state');
+                    resultContainer.innerHTML = `<video src="${vidUrl}" controls autoplay loop class="result-video"></video>`;
+                    updateCounter();
+                } catch (err) {
+                    resultContainer.classList.remove('loading-state');
+                    resultContainer.innerHTML = `
+                        <div style="text-align:center;padding:40px;">
+                            <div style="font-family:var(--font-mono);color:#ff3366;font-size:1rem;letter-spacing:1px;">● 视频生成失败</div>
+                            <div style="font-family:var(--font-mono);color:var(--text-secondary);font-size:0.75rem;margin-top:12px;">${err.message}</div>
+                            <button onclick="document.getElementById('video-result').classList.remove('show');document.getElementById('video-result-container').innerHTML='';"
+                                style="margin-top:16px;padding:6px 16px;background:transparent;border:1px solid var(--text-secondary);color:var(--text-secondary);font-family:var(--font-mono);font-size:0.7rem;cursor:pointer;">关闭</button>
+                        </div>`;
+                }
+            }
 
             btn.classList.remove('loading');
             btn.disabled = false;
-            updateCounter();
         }
 
         /* ===== Result Actions ===== */
         function downloadResult(type) {
             if (type === 'image') {
                 const dataUrl = document.getElementById('gen-image-data')?.value;
-                if (dataUrl) {
-                    const a = document.createElement('a');
+                if (!dataUrl) {
+                    alert('请先生成一张图片');
+                    return;
+                }
+                const a = document.createElement('a');
+                // If stored as base64 data URL, download directly
+                if (dataUrl.startsWith('data:')) {
                     a.href = dataUrl;
                     a.download = 'znqm-generated-image.png';
+                } else {
+                    // Remote URL: open in new tab for downloading
+                    a.href = dataUrl;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.download = '';
+                }
+                a.click();
+            } else if (type === 'video') {
+                const vid = document.querySelector('#video-result-container video');
+                if (vid && vid.src) {
+                    const a = document.createElement('a');
+                    a.href = vid.src;
+                    a.target = '_blank';
+                    a.rel = 'noopener';
                     a.click();
                 } else {
-                    alert('请先生成一张图片');
+                    alert('暂无视频可下载');
                 }
-            } else {
-                alert('视频下载功能即将上线');
             }
         }
 
@@ -1468,48 +1668,57 @@
         }
 
         /* ===== API Key Management ===== */
-        document.getElementById('api-key-image').addEventListener('input', function() {
-            const dot = document.getElementById('img-api-status');
+        document.getElementById('api-key-dashscope').addEventListener('input', function() {
+            const dot = document.getElementById('ds-api-status');
             if (this.value.trim()) {
                 dot.classList.add('connected');
                 dot.classList.remove('disconnected');
-                localStorage.setItem('znqm_img_api_key', this.value);
+                localStorage.setItem('znqm_dashscope_key', this.value);
             } else {
                 dot.classList.add('disconnected');
                 dot.classList.remove('connected');
-                localStorage.removeItem('znqm_img_api_key');
+                localStorage.removeItem('znqm_dashscope_key');
             }
         });
 
-        document.getElementById('api-key-video').addEventListener('input', function() {
-            const dot = document.getElementById('vid-api-status');
+        document.getElementById('api-key-replicate').addEventListener('input', function() {
+            const dot = document.getElementById('rp-api-status');
             if (this.value.trim()) {
                 dot.classList.add('connected');
                 dot.classList.remove('disconnected');
-                localStorage.setItem('znqm_vid_api_key', this.value);
+                localStorage.setItem('znqm_replicate_key', this.value);
             } else {
                 dot.classList.add('disconnected');
                 dot.classList.remove('connected');
-                localStorage.removeItem('znqm_vid_api_key');
+                localStorage.removeItem('znqm_replicate_key');
             }
         });
+
+        function onProviderChange() {
+            const provider = document.getElementById('provider-image').value;
+            const dsGroup = document.getElementById('api-key-dashscope').parentElement;
+            const rpGroup = document.getElementById('api-key-replicate').parentElement;
+            dsGroup.style.display = provider === 'dashscope' ? '' : 'none';
+            rpGroup.style.display = provider === 'replicate' ? '' : 'none';
+        }
 
         // Load saved keys
         (function() {
-            const imgKey = localStorage.getItem('znqm_img_api_key');
-            if (imgKey) {
-                document.getElementById('api-key-image').value = imgKey;
-                const dot = document.getElementById('img-api-status');
+            const dsKey = localStorage.getItem('znqm_dashscope_key');
+            if (dsKey) {
+                document.getElementById('api-key-dashscope').value = dsKey;
+                const dot = document.getElementById('ds-api-status');
                 dot.classList.add('connected');
                 dot.classList.remove('disconnected');
             }
-            const vidKey = localStorage.getItem('znqm_vid_api_key');
-            if (vidKey) {
-                document.getElementById('api-key-video').value = vidKey;
-                const dot = document.getElementById('vid-api-status');
+            const rpKey = localStorage.getItem('znqm_replicate_key');
+            if (rpKey) {
+                document.getElementById('api-key-replicate').value = rpKey;
+                const dot = document.getElementById('rp-api-status');
                 dot.classList.add('connected');
                 dot.classList.remove('disconnected');
             }
+            onProviderChange();
         })();
 
         /* ===== Scroll Animation ===== */
