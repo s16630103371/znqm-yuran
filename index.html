@@ -1,0 +1,1540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZNQM - AI 生成工作室 | 图片 · 视频 · 创意</title>
+    <meta name="description" content="ZNQM AI 生成工作室，使用前沿 AI 技术生成高质量图片和视频，释放你的创意潜能。">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230a0a0a' stroke='%2300ffff' stroke-width='1.5'/><text x='16' y='22' text-anchor='middle' fill='%2300ffff' font-family='monospace' font-size='16' font-weight='bold'>Z</text></svg>">
+    <style>
+        /* ===== CSS Variables ===== */
+        :root {
+            --bg-primary: #050510;
+            --bg-secondary: #0a0a1a;
+            --bg-card: rgba(10, 10, 30, 0.7);
+            --neon-cyan: #00ffff;
+            --neon-magenta: #ff00ff;
+            --neon-yellow: #ffff00;
+            --neon-green: #00ff41;
+            --neon-purple: #b400ff;
+            --text-primary: #e0e0e0;
+            --text-secondary: #8888aa;
+            --border-glow: rgba(0, 255, 255, 0.3);
+            --border-glow-strong: rgba(0, 255, 255, 0.6);
+            --font-mono: 'Courier New', 'Source Code Pro', monospace;
+            --font-primary: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        }
+
+        /* ===== Reset & Base ===== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* ===== Scanline Overlay ===== */
+        .scanlines {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 9999;
+            background: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 2px,
+                rgba(0, 255, 255, 0.015) 2px,
+                rgba(0, 255, 255, 0.015) 4px
+            );
+        }
+
+        /* ===== Grid Background ===== */
+        .grid-bg {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0;
+            background-image:
+                linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            animation: gridMove 20s linear infinite;
+        }
+
+        @keyframes gridMove {
+            0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
+            100% { transform: perspective(500px) rotateX(60deg) translateY(60px); }
+        }
+
+        /* ===== Particles Canvas ===== */
+        #particles-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0;
+        }
+
+        /* ===== Navigation ===== */
+        .nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: rgba(5, 5, 16, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-glow);
+            padding: 0 40px;
+            display: flex; align-items: center; justify-content: space-between;
+            height: 64px;
+        }
+
+        .nav-logo {
+            font-family: var(--font-mono);
+            font-size: 1.6rem;
+            font-weight: 900;
+            color: var(--neon-cyan);
+            text-decoration: none;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(0, 255, 255, 0.3);
+            letter-spacing: 3px;
+            position: relative;
+        }
+
+        .nav-logo::after {
+            content: '';
+            position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px;
+            background: var(--neon-cyan);
+            box-shadow: 0 0 10px var(--neon-cyan);
+            animation: logoLine 2s ease-in-out infinite;
+        }
+
+        @keyframes logoLine {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+
+        .nav-links {
+            display: flex; gap: 32px; list-style: none; align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+            transition: all 0.3s;
+            position: relative;
+            padding: 4px 0;
+        }
+
+        .nav-links a::after {
+            content: ''; position: absolute; bottom: 0; left: 0;
+            width: 0; height: 1px;
+            background: var(--neon-cyan);
+            box-shadow: 0 0 8px var(--neon-cyan);
+            transition: width 0.3s;
+        }
+
+        .nav-links a:hover { color: var(--neon-cyan); }
+        .nav-links a:hover::after { width: 100%; }
+
+        .nav-btn {
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            padding: 8px 20px;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .nav-btn:hover {
+            background: rgba(0, 255, 255, 0.1);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1);
+        }
+
+        /* ===== Hero Section ===== */
+        .hero {
+            position: relative; z-index: 1;
+            min-height: 100vh;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            text-align: center; padding: 120px 20px 60px;
+        }
+
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            border: 1px solid var(--neon-purple);
+            padding: 6px 16px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem; letter-spacing: 2px;
+            color: var(--neon-purple);
+            margin-bottom: 30px;
+            animation: badgePulse 3s ease-in-out infinite;
+        }
+
+        @keyframes badgePulse {
+            0%, 100% { box-shadow: 0 0 5px rgba(180, 0, 255, 0.3); }
+            50% { box-shadow: 0 0 25px rgba(180, 0, 255, 0.6); }
+        }
+
+        .hero-badge .dot {
+            width: 8px; height: 8px;
+            background: var(--neon-green);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--neon-green);
+            animation: dotBlink 1.5s ease-in-out infinite;
+        }
+
+        @keyframes dotBlink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .hero-title {
+            font-family: var(--font-mono);
+            font-size: clamp(2.5rem, 6vw, 5rem);
+            font-weight: 900;
+            letter-spacing: 4px;
+            color: #fff;
+            text-shadow: 0 0 40px rgba(0, 255, 255, 0.4);
+            position: relative;
+        }
+
+        .hero-title .glitch {
+            position: relative; display: inline-block;
+        }
+
+        .hero-title .glitch::before,
+        .hero-title .glitch::after {
+            content: attr(data-text);
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        }
+
+        .hero-title .glitch::before {
+            color: var(--neon-magenta);
+            animation: glitchTop 2s infinite linear alternate-reverse;
+            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
+        }
+
+        .hero-title .glitch::after {
+            color: var(--neon-cyan);
+            animation: glitchBottom 2.5s infinite linear alternate-reverse;
+            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
+        }
+
+        @keyframes glitchTop {
+            0% { transform: translate(0); }
+            20% { transform: translate(-3px, 2px); }
+            40% { transform: translate(3px, -1px); }
+            60% { transform: translate(-1px, 3px); }
+            80% { transform: translate(2px, -2px); }
+            100% { transform: translate(0); }
+        }
+
+        @keyframes glitchBottom {
+            0% { transform: translate(0); }
+            20% { transform: translate(2px, -1px); }
+            40% { transform: translate(-2px, 2px); }
+            60% { transform: translate(3px, -2px); }
+            80% { transform: translate(-1px, 1px); }
+            100% { transform: translate(0); }
+        }
+
+        .hero-subtitle {
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            letter-spacing: 2px;
+            margin-top: 16px;
+            max-width: 600px;
+        }
+
+        .hero-cta {
+            margin-top: 40px;
+            display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
+        }
+
+        .btn-primary {
+            background: rgba(0, 255, 255, 0.1);
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            padding: 14px 36px;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-primary::before {
+            content: '';
+            position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-primary:hover::before { left: 100%; }
+        .btn-primary:hover {
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.4), inset 0 0 30px rgba(0, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            border: 1px solid var(--neon-purple);
+            color: var(--neon-purple);
+            padding: 14px 36px;
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 0 30px rgba(180, 0, 255, 0.4);
+            transform: translateY(-2px);
+        }
+
+        /* ===== Stats Bar ===== */
+        .stats-bar {
+            position: relative; z-index: 1;
+            display: flex; justify-content: center; gap: 60px;
+            padding: 30px 20px;
+            border-top: 1px solid var(--border-glow);
+            border-bottom: 1px solid var(--border-glow);
+            margin: 0 40px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-family: var(--font-mono);
+            font-size: 2rem;
+            font-weight: 900;
+            color: var(--neon-cyan);
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+        }
+
+        .stat-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            letter-spacing: 2px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        /* ===== Section Common ===== */
+        .section {
+            position: relative; z-index: 1;
+            padding: 100px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center; margin-bottom: 60px;
+        }
+
+        .section-tag {
+            font-family: var(--font-mono);
+            font-size: 0.75rem; letter-spacing: 3px;
+            color: var(--neon-purple);
+            margin-bottom: 12px;
+        }
+
+        .section-title {
+            font-family: var(--font-mono);
+            font-size: clamp(1.8rem, 4vw, 2.5rem);
+            font-weight: 900; letter-spacing: 2px;
+            color: #fff;
+            position: relative;
+            display: inline-block;
+        }
+
+        .section-title::after {
+            content: '';
+            position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+            width: 60px; height: 2px;
+            background: var(--neon-cyan);
+            box-shadow: 0 0 15px var(--neon-cyan);
+        }
+
+        .section-desc {
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.9rem; letter-spacing: 1px;
+            margin-top: 24px;
+            max-width: 500px; margin-left: auto; margin-right: auto;
+        }
+
+        /* ===== Generator Section ===== */
+        .generator-tabs {
+            display: flex; justify-content: center; gap: 0;
+            margin-bottom: 40px;
+        }
+
+        .gen-tab {
+            padding: 12px 32px;
+            font-family: var(--font-mono);
+            font-size: 0.9rem; letter-spacing: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 1px solid var(--border-glow);
+            background: transparent;
+            color: var(--text-secondary);
+            position: relative;
+        }
+
+        .gen-tab:first-child { border-right: none; }
+        .gen-tab:last-child { border-left: none; }
+
+        .gen-tab.active {
+            color: var(--neon-cyan);
+            background: rgba(0, 255, 255, 0.05);
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            z-index: 1;
+        }
+
+        .gen-tab:hover:not(.active) {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .gen-panel {
+            display: none;
+        }
+
+        .gen-panel.active {
+            display: block;
+        }
+
+        .gen-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .gen-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+        }
+
+        .gen-card-header {
+            font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 2px;
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .gen-card-header .corner {
+            width: 12px; height: 12px;
+            border: 1px solid var(--neon-cyan);
+            opacity: 0.5;
+        }
+
+        .gen-card-header .corner:first-child { border-right: none; border-bottom: none; }
+        .gen-card-header .corner:last-child { border-left: none; border-bottom: none; }
+
+        .prompt-input-group {
+            position: relative; margin-bottom: 24px;
+        }
+
+        .prompt-label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem; letter-spacing: 1px;
+            color: var(--neon-cyan);
+            margin-bottom: 8px;
+        }
+
+        .prompt-input {
+            width: 100%;
+            padding: 16px 20px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-glow);
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 0.95rem;
+            letter-spacing: 0.5px;
+            resize: vertical;
+            min-height: 100px;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        .prompt-input:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.15), inset 0 0 20px rgba(0, 255, 255, 0.05);
+        }
+
+        .prompt-input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .options-row {
+            display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap;
+        }
+
+        .option-group {
+            flex: 1; min-width: 160px;
+        }
+
+        .option-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 1px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .option-select {
+            width: 100%;
+            padding: 10px 14px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-glow);
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s;
+            appearance: none;
+            background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2300ffff'><path d='M6 8L0 0h12z'/></svg>");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+        .option-select:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 16px;
+            background: transparent;
+            border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan);
+            font-family: var(--font-mono);
+            font-size: 1.1rem;
+            letter-spacing: 3px;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .generate-btn:hover {
+            background: rgba(0, 255, 255, 0.08);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.3), inset 0 0 30px rgba(0, 255, 255, 0.08);
+        }
+
+        .generate-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        .generate-btn .btn-spinner {
+            display: none;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(0, 255, 255, 0.3);
+            border-top-color: var(--neon-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .generate-btn.loading .btn-text { display: none; }
+        .generate-btn.loading .btn-spinner { display: inline-block; }
+
+        /* ===== Result Panel ===== */
+        .result-panel {
+            display: none; margin-top: 30px;
+        }
+
+        .result-panel.show { display: block; }
+
+        .result-container {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            padding: 20px;
+            min-height: 300px;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .result-container.loading-state::after {
+            content: '';
+            position: absolute; inset: 0;
+            background: repeating-linear-gradient(
+                0deg, transparent, transparent 3px,
+                rgba(0, 255, 255, 0.03) 3px, rgba(0, 255, 255, 0.03) 6px
+            );
+            animation: scanDown 2s linear infinite;
+        }
+
+        @keyframes scanDown {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 100px; }
+        }
+
+        .result-container .loading-text {
+            font-family: var(--font-mono);
+            font-size: 0.9rem; letter-spacing: 2px;
+            color: var(--neon-cyan);
+            animation: loadingDots 1.5s infinite;
+        }
+
+        @keyframes loadingDots {
+            0%, 20% { content: '生成中.'; }
+            40% { content: '生成中..'; }
+            60%, 100% { content: '生成中...'; }
+        }
+
+        .result-image {
+            max-width: 100%; max-height: 500px;
+            border-radius: 2px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        .result-video {
+            max-width: 100%; max-height: 500px;
+            border-radius: 2px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+        }
+
+        .result-actions {
+            display: flex; gap: 12px; margin-top: 16px; justify-content: center;
+        }
+
+        .result-action-btn {
+            padding: 8px 16px;
+            background: transparent;
+            border: 1px solid var(--text-secondary);
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+            font-size: 0.75rem; letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .result-action-btn:hover {
+            border-color: var(--neon-cyan);
+            color: var(--neon-cyan);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+        }
+
+        /* ===== Gallery Section ===== */
+        .gallery-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .gallery-item {
+            position: relative;
+            border: 1px solid var(--border-glow);
+            border-radius: 4px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: all 0.3s;
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .gallery-item:hover {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.25);
+            transform: translateY(-4px);
+        }
+
+        .gallery-item img, .gallery-item video {
+            width: 100%; height: 100%; object-fit: cover;
+        }
+
+        .gallery-overlay {
+            position: absolute; inset: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 60%);
+            opacity: 0; transition: opacity 0.3s;
+            display: flex; align-items: flex-end; padding: 16px;
+        }
+
+        .gallery-item:hover .gallery-overlay { opacity: 1; }
+
+        .gallery-overlay-text {
+            font-family: var(--font-mono);
+            font-size: 0.75rem; letter-spacing: 1px;
+            color: var(--neon-cyan);
+        }
+
+        .gallery-video-badge {
+            position: absolute; top: 12px; right: 12px;
+            padding: 4px 10px;
+            background: rgba(180, 0, 255, 0.8);
+            font-family: var(--font-mono);
+            font-size: 0.65rem; letter-spacing: 1px;
+            color: #fff;
+            border-radius: 2px;
+        }
+
+        /* ===== API Config Section ===== */
+        .api-config {
+            background: var(--bg-card);
+            border: 1px solid var(--border-glow-strong);
+            border-radius: 4px;
+            padding: 30px;
+            max-width: 600px;
+            margin: 60px auto 0;
+            position: relative;
+        }
+
+        .api-config::before {
+            content: '[ API CONFIG ]';
+            position: absolute; top: -10px; left: 20px;
+            background: var(--bg-primary);
+            padding: 0 10px;
+            font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 2px;
+            color: var(--neon-yellow);
+        }
+
+        .api-input-group {
+            display: flex; gap: 12px; margin-bottom: 16px; align-items: center;
+        }
+
+        .api-input-group label {
+            font-family: var(--font-mono);
+            font-size: 0.75rem; letter-spacing: 1px;
+            color: var(--text-secondary);
+            min-width: 140px;
+        }
+
+        .api-input-group input {
+            flex: 1;
+            padding: 10px 14px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-glow);
+            color: #fff;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .api-input-group input:focus {
+            border-color: var(--neon-cyan);
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
+        }
+
+        .api-status-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            display: inline-block;
+        }
+
+        .api-status-dot.connected { background: var(--neon-green); box-shadow: 0 0 8px var(--neon-green); }
+        .api-status-dot.disconnected { background: #ff3333; box-shadow: 0 0 8px #ff3333; }
+
+        /* ===== API Guide Section ===== */
+        .api-guide {
+            max-width: 600px;
+            margin: 40px auto 0;
+            padding: 24px;
+            border: 1px dashed var(--border-glow);
+            border-radius: 4px;
+        }
+
+        .api-guide h4 {
+            font-family: var(--font-mono);
+            font-size: 0.85rem; letter-spacing: 2px;
+            color: var(--neon-cyan);
+            margin-bottom: 12px;
+        }
+
+        .api-guide p, .api-guide code {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+
+        .api-guide code {
+            background: rgba(0, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 2px;
+            color: var(--neon-cyan);
+        }
+
+        .api-guide a {
+            color: var(--neon-purple);
+            text-decoration: none;
+        }
+
+        .api-guide a:hover {
+            text-shadow: 0 0 10px var(--neon-purple);
+        }
+
+        /* ===== Footer ===== */
+        .footer {
+            position: relative; z-index: 1;
+            border-top: 1px solid var(--border-glow);
+            padding: 40px;
+            text-align: center;
+        }
+
+        .footer-text {
+            font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 2px;
+            color: var(--text-secondary);
+        }
+
+        .footer-text span {
+            color: var(--neon-cyan);
+        }
+
+        .footer-links {
+            display: flex; gap: 24px; justify-content: center;
+            margin-top: 16px; flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 1px;
+            transition: color 0.3s;
+        }
+
+        .footer-links a:hover { color: var(--neon-cyan); }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 768px) {
+            .nav { padding: 0 16px; }
+            .nav-links { gap: 16px; }
+            .nav-links a { font-size: 0.75rem; }
+            .stats-bar { gap: 30px; margin: 0 16px; }
+            .gen-card { padding: 24px 16px; }
+            .options-row { flex-direction: column; gap: 12px; }
+            .section { padding: 60px 16px; }
+            .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Scanline Overlay -->
+    <div class="scanlines"></div>
+
+    <!-- Grid Background -->
+    <div class="grid-bg"></div>
+
+    <!-- Particles Canvas -->
+    <canvas id="particles-canvas"></canvas>
+
+    <!-- Navigation -->
+    <nav class="nav">
+        <a href="#" class="nav-logo">ZNQM</a>
+        <ul class="nav-links">
+            <li><a href="#generate">生成</a></li>
+            <li><a href="#gallery">作品</a></li>
+            <li><a href="#api">API</a></li>
+            <li><a href="https://github.com/s16630103371" target="_blank" class="nav-btn">GitHub</a></li>
+        </ul>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-badge">
+            <span class="dot"></span>
+            AI GENERATION STUDIO · BETA
+        </div>
+        <h1 class="hero-title">
+            <span class="glitch" data-text="ZNQM">ZNQM</span>
+        </h1>
+        <p class="hero-subtitle">
+            AI 驱动的图片与视频生成平台<br>输入你的创意，让 AI 为你创造视觉世界
+        </p>
+        <div class="hero-cta">
+            <a href="#generate" class="btn-primary">开始生成</a>
+            <a href="#gallery" class="btn-secondary">浏览作品</a>
+        </div>
+    </section>
+
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-number" id="stat-models">5+</div>
+            <div class="stat-label">AI 模型</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number" id="stat-generated">0</div>
+            <div class="stat-label">已生成</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">24/7</div>
+            <div class="stat-label">在线可用</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-number">&lt;30s</div>
+            <div class="stat-label">平均生成时间</div>
+        </div>
+    </div>
+
+    <!-- Generator Section -->
+    <section class="section" id="generate">
+        <div class="section-header">
+            <div class="section-tag">// GENERATOR</div>
+            <h2 class="section-title">AI 生成引擎</h2>
+            <p class="section-desc">选择模式，输入提示词，释放 AI 创造力</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="generator-tabs">
+            <button class="gen-tab active" data-tab="image">图片生成</button>
+            <button class="gen-tab" data-tab="video">视频生成</button>
+        </div>
+
+        <!-- Image Generation Panel -->
+        <div class="gen-panel active" id="panel-image">
+            <div class="gen-card">
+                <div class="gen-card-header">
+                    <span class="corner"></span>
+                    IMAGE_GENERATION.exe
+                    <span class="corner"></span>
+                </div>
+
+                <div class="prompt-input-group">
+                    <div class="prompt-label">&gt; PROMPT</div>
+                    <textarea
+                        class="prompt-input"
+                        id="image-prompt"
+                        placeholder="描述你想要的画面...&#10;&#10;例如：赛博朋克城市夜景，霓虹灯闪烁，雨中街道，未来感十足的飞行汽车穿梭于高楼之间，4K画质，电影级光影"
+                        maxlength="1000"
+                    ></textarea>
+                </div>
+
+                <div class="options-row">
+                    <div class="option-group">
+                        <div class="option-label">图片尺寸</div>
+                        <select class="option-select" id="image-size">
+                            <option value="1024x1024">1024×1024 (正方形)</option>
+                            <option value="1280x720">1280×720 (横屏 16:9)</option>
+                            <option value="720x1280">720×1280 (竖屏 9:16)</option>
+                            <option value="1536x1024">1536×1024 (横屏 3:2)</option>
+                            <option value="1024x1536">1024×1536 (竖屏 2:3)</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <div class="option-label">风格</div>
+                        <select class="option-select" id="image-style">
+                            <option value="photorealistic">真实照片</option>
+                            <option value="anime">二次元动漫</option>
+                            <option value="cyberpunk">赛博朋克</option>
+                            <option value="oil-painting">油画风格</option>
+                            <option value="3d-render">3D 渲染</option>
+                            <option value="pixel-art">像素艺术</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <div class="option-label">数量</div>
+                        <select class="option-select" id="image-count">
+                            <option value="1">1 张</option>
+                            <option value="2">2 张</option>
+                            <option value="4">4 张</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="generate-btn" id="generate-image-btn" onclick="generateImage()">
+                    <span class="btn-spinner"></span>
+                    <span class="btn-text">▸ 生成图片</span>
+                </button>
+            </div>
+
+            <!-- Result -->
+            <div class="result-panel" id="image-result">
+                <div class="result-container" id="image-result-container"></div>
+                <div class="result-actions">
+                    <button class="result-action-btn" onclick="downloadResult('image')">下载</button>
+                    <button class="result-action-btn" onclick="clearResult('image')">清除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Generation Panel -->
+        <div class="gen-panel" id="panel-video">
+            <div class="gen-card">
+                <div class="gen-card-header">
+                    <span class="corner"></span>
+                    VIDEO_GENERATION.exe
+                    <span class="corner"></span>
+                </div>
+
+                <div class="prompt-input-group">
+                    <div class="prompt-label">&gt; PROMPT</div>
+                    <textarea
+                        class="prompt-input"
+                        id="video-prompt"
+                        placeholder="描述你想要的视频画面和动态...&#10;&#10;例如：一个赛博朋克世界的街道，镜头缓慢向前推进，霓虹灯在雨中闪烁，路人穿着未来风格的服装行走，电影级画质，流畅运镜"
+                        maxlength="1000"
+                    ></textarea>
+                </div>
+
+                <div class="options-row">
+                    <div class="option-group">
+                        <div class="option-label">时长</div>
+                        <select class="option-select" id="video-duration">
+                            <option value="3">3 秒</option>
+                            <option value="5">5 秒</option>
+                            <option value="10">10 秒</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <div class="option-label">分辨率</div>
+                        <select class="option-select" id="video-resolution">
+                            <option value="720p">720p</option>
+                            <option value="1080p">1080p</option>
+                        </select>
+                    </div>
+                    <div class="option-group">
+                        <div class="option-label">帧率</div>
+                        <select class="option-select" id="video-fps">
+                            <option value="24">24 fps</option>
+                            <option value="30">30 fps</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button class="generate-btn" id="generate-video-btn" onclick="generateVideo()">
+                    <span class="btn-spinner"></span>
+                    <span class="btn-text">▸ 生成视频</span>
+                </button>
+            </div>
+
+            <!-- Result -->
+            <div class="result-panel" id="video-result">
+                <div class="result-container" id="video-result-container"></div>
+                <div class="result-actions">
+                    <button class="result-action-btn" onclick="downloadResult('video')">下载</button>
+                    <button class="result-action-btn" onclick="clearResult('video')">清除</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- API Config -->
+        <div class="api-config" id="api">
+            <div class="section-header" style="margin-bottom: 24px;">
+                <div class="section-tag">// API CONFIGURATION</div>
+                <h2 class="section-title" style="font-size: 1.5rem;">API 配置</h2>
+            </div>
+
+            <div class="api-input-group">
+                <label>图片 API Key</label>
+                <input type="password" id="api-key-image" placeholder="输入你的 AI 图片 API Key...">
+                <span class="api-status-dot disconnected" id="img-api-status"></span>
+            </div>
+            <div class="api-input-group">
+                <label>视频 API Key</label>
+                <input type="password" id="api-key-video" placeholder="输入你的 AI 视频 API Key...">
+                <span class="api-status-dot disconnected" id="vid-api-status"></span>
+            </div>
+            <p style="font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-secondary); margin-top: 12px;">
+                API Key 仅保存在你的浏览器本地，不会上传到任何服务器。
+            </p>
+        </div>
+
+        <!-- API Guide -->
+        <div class="api-guide">
+            <h4>如何获取 API Key？</h4>
+            <p>
+                图片生成推荐使用 <a href="https://replicate.com" target="_blank">Replicate</a> 的
+                <code>stability-ai/sdxl</code> 或 <code>black-forest-labs/flux-dev</code> 模型，
+                注册后在 <a href="https://replicate.com/account/api-tokens" target="_blank">API Tokens</a> 页面获取 Key。
+            </p>
+            <p style="margin-top: 8px;">
+                视频生成推荐 <a href="https://replicate.com" target="_blank">Replicate</a> 的
+                <code>lucataco/hotshot-xl</code> 或 <code>stability-ai/stable-video-diffusion</code>，
+                使用同一个 API Key 即可。也支持
+                <a href="https://openai.com" target="_blank">OpenAI</a> DALL·E / Sora 和
+                <a href="https://stability.ai" target="_blank">Stability AI</a> 的 API。
+            </p>
+        </div>
+    </section>
+
+    <!-- Gallery Section -->
+    <section class="section" id="gallery">
+        <div class="section-header">
+            <div class="section-tag">// GALLERY</div>
+            <h2 class="section-title">作品长廊</h2>
+            <p class="section-desc">AI 生成的精选作品展示</p>
+        </div>
+
+        <div class="gallery-grid" id="gallery-grid">
+            <!-- Items will be populated by JS -->
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p class="footer-text">
+            ZNQM <span>//</span> AI GENERATION STUDIO <span>//</span> EST. 2026
+        </p>
+        <div class="footer-links">
+            <a href="#home">首页</a>
+            <a href="#generate">生成</a>
+            <a href="#gallery">作品</a>
+            <a href="#api">API</a>
+            <a href="https://github.com/s16630103371" target="_blank">GitHub</a>
+            <a href="mailto:s16630103371@github.com">联系</a>
+        </div>
+    </footer>
+
+    <script>
+        /* ===== Particles Background ===== */
+        (function() {
+            const canvas = document.getElementById('particles-canvas');
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            let animationId;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            class Particle {
+                constructor() {
+                    this.reset();
+                }
+
+                reset() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    this.size = Math.random() * 2 + 0.5;
+                    this.speedX = (Math.random() - 0.5) * 0.5;
+                    this.speedY = (Math.random() - 0.5) * 0.5;
+                    this.opacity = Math.random() * 0.5 + 0.1;
+                    this.hue = Math.random() < 0.5 ? 180 : (Math.random() < 0.5 ? 300 : 60);
+                }
+
+                update() {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+
+                    if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+                    if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+
+                    this.opacity += (Math.random() - 0.5) * 0.02;
+                    this.opacity = Math.max(0.05, Math.min(0.6, this.opacity));
+                }
+
+                draw() {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${this.hue}, 100%, 60%, ${this.opacity})`;
+                    ctx.fill();
+
+                    // Glow
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${this.hue}, 100%, 60%, ${this.opacity * 0.1})`;
+                    ctx.fill();
+                }
+            }
+
+            function init() {
+                resize();
+                particles = Array.from({ length: 80 }, () => new Particle());
+            }
+
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(p => { p.update(); p.draw(); });
+
+                // Draw connections
+                for (let i = 0; i < particles.length; i++) {
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const dx = particles[i].x - particles[j].x;
+                        const dy = particles[i].y - particles[j].y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < 120) {
+                            ctx.beginPath();
+                            ctx.moveTo(particles[i].x, particles[i].y);
+                            ctx.lineTo(particles[j].x, particles[j].y);
+                            ctx.strokeStyle = `rgba(0, 255, 255, ${0.04 * (1 - dist / 120)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                animationId = requestAnimationFrame(animate);
+            }
+
+            window.addEventListener('resize', resize);
+            init();
+            animate();
+        })();
+
+        /* ===== Tab Switching ===== */
+        document.querySelectorAll('.gen-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.gen-tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.gen-panel').forEach(p => p.classList.remove('active'));
+
+                this.classList.add('active');
+                const target = this.dataset.tab === 'image' ? 'panel-image' : 'panel-video';
+                document.getElementById(target).classList.add('active');
+            });
+        });
+
+        /* ===== Gallery Items ===== */
+        const galleryItems = [
+            { type: 'image', prompt: '赛博朋克城市夜景，霓虹降临', color: '00ffff' },
+            { type: 'image', prompt: '未来机械姬肖像，金属光泽', color: 'ff00ff' },
+            { type: 'video', prompt: '粒子特效展示，流光溢彩', color: 'b400ff' },
+            { type: 'image', prompt: '量子计算视觉化，数据流', color: '00ff41' },
+            { type: 'image', prompt: '太空站日出，科幻场景', color: 'ffff00' },
+            { type: 'video', prompt: '数字矩阵雨，代码瀑布', color: '00ffff' },
+        ];
+
+        function renderGallery() {
+            const grid = document.getElementById('gallery-grid');
+            grid.innerHTML = galleryItems.map((item, i) => `
+                <div class="gallery-item" style="background: linear-gradient(135deg, #0a0a1a, #${item.color}11); display: flex; align-items: center; justify-content: center;">
+                    ${item.type === 'video' ? '<div class="gallery-video-badge">VIDEO</div>' : ''}
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-family: var(--font-mono); font-size: 2rem; color: #${item.color}33; margin-bottom: 12px;">
+                            ${item.type === 'video' ? '▶' : '▣'}
+                        </div>
+                        <div style="font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 1px; color: #${item.color};">
+                            ${item.prompt}
+                        </div>
+                        <div style="font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-secondary); margin-top: 8px;">
+                            点击生成相似作品
+                        </div>
+                    </div>
+                    <div class="gallery-overlay">
+                        <span class="gallery-overlay-text">${item.prompt}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            // Click handler
+            grid.querySelectorAll('.gallery-item').forEach((item, i) => {
+                item.addEventListener('click', () => {
+                    const gItem = galleryItems[i];
+                    if (gItem.type === 'image') {
+                        document.querySelector('[data-tab="image"]').click();
+                        document.getElementById('image-prompt').value = gItem.prompt;
+                    } else {
+                        document.querySelector('[data-tab="video"]').click();
+                        document.getElementById('video-prompt').value = gItem.prompt;
+                    }
+                    document.getElementById('generate').scrollIntoView({ behavior: 'smooth' });
+                });
+            });
+        }
+
+        renderGallery();
+
+        /* ===== Generation Counter ===== */
+        let generationCount = parseInt(localStorage.getItem('znqm_gen_count') || '0');
+
+        function updateCounter() {
+            generationCount++;
+            localStorage.setItem('znqm_gen_count', generationCount.toString());
+            document.getElementById('stat-generated').textContent = generationCount;
+        }
+        document.getElementById('stat-generated').textContent = generationCount;
+
+        /* ===== Simulated Generation ===== */
+        async function generateImage() {
+            const prompt = document.getElementById('image-prompt').value.trim();
+            if (!prompt) {
+                alert('请输入提示词描述你想要的画面');
+                return;
+            }
+
+            const btn = document.getElementById('generate-image-btn');
+            const resultPanel = document.getElementById('image-result');
+            const resultContainer = document.getElementById('image-result-container');
+
+            btn.classList.add('loading');
+            btn.disabled = true;
+            resultPanel.classList.add('show');
+            resultContainer.classList.add('loading-state');
+            resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--neon-cyan);font-size:0.9rem;letter-spacing:2px;">生成中...</span>';
+
+            // Simulate generation delay
+            await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+
+            // Generate a placeholder image based on the style
+            const style = document.getElementById('image-style').value;
+            const hueMap = {
+                'photorealistic': 200, 'anime': 320, 'cyberpunk': 180,
+                'oil-painting': 30, '3d-render': 210, 'pixel-art': 270
+            };
+            const hue = hueMap[style] || 180;
+            const size = document.getElementById('image-size').value.split('x');
+            const w = parseInt(size[0]);
+            const h = parseInt(size[1]);
+
+            // Create a procedural placeholder image
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.min(w, 800);
+            canvas.height = Math.min(h, 800);
+            const ctx = canvas.getContext('2d');
+
+            // Gradient background
+            const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            gradient.addColorStop(0, `hsl(${hue}, 80%, 5%)`);
+            gradient.addColorStop(0.5, `hsl(${hue + 30}, 60%, 10%)`);
+            gradient.addColorStop(1, `hsl(${hue - 30}, 70%, 8%)`);
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid
+            ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.06)`;
+            ctx.lineWidth = 0.5;
+            const gridSize = 30;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+            }
+
+            // Decorative shapes
+            ctx.strokeStyle = `hsla(${hue}, 100%, 60%, 0.3)`;
+            ctx.lineWidth = 1.5;
+            const cx = canvas.width / 2, cy = canvas.height / 2;
+            const r = Math.min(cx, cy) * 0.6;
+
+            // Concentric hexagon
+            for (let i = 0; i < 3; i++) {
+                const radius = r * (1 - i * 0.2);
+                ctx.beginPath();
+                for (let j = 0; j < 6; j++) {
+                    const angle = j * Math.PI / 3 - Math.PI / 6;
+                    const x = cx + radius * Math.cos(angle);
+                    const y = cy + radius * Math.sin(angle);
+                    if (j === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${0.15 + i * 0.1})`;
+                ctx.stroke();
+            }
+
+            // Glowing center circle
+            const centerGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 0.3);
+            centerGlow.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.4)`);
+            centerGlow.addColorStop(1, 'transparent');
+            ctx.fillStyle = centerGlow;
+            ctx.beginPath(); ctx.arc(cx, cy, r * 0.3, 0, Math.PI * 2); ctx.fill();
+
+            // Decorative particles
+            for (let i = 0; i < 30; i++) {
+                const px = cx + (Math.random() - 0.5) * r * 1.2;
+                const py = cy + (Math.random() - 0.5) * r * 1.2;
+                const ps = Math.random() * 3 + 1;
+                ctx.beginPath(); ctx.arc(px, py, ps, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${hue}, 100%, 70%, ${Math.random() * 0.6})`;
+                ctx.fill();
+            }
+
+            // Style label
+            const styleLabels = {
+                'photorealistic': 'PHOTOREALISTIC', 'anime': 'ANIME STYLE',
+                'cyberpunk': 'CYBERPUNK', 'oil-painting': 'OIL PAINTING',
+                '3d-render': '3D RENDER', 'pixel-art': 'PIXEL ART'
+            };
+            ctx.font = `${Math.min(canvas.width, canvas.height) * 0.03}px "Courier New", monospace`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = `hsla(${hue}, 100%, 70%, 0.8)`;
+            ctx.fillText(styleLabels[style] || style.toUpperCase(), cx, cy + r * 0.5);
+
+            // Prompt label
+            ctx.font = `${Math.min(canvas.width, canvas.height) * 0.025}px "Courier New", monospace`;
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            const words = prompt.length > 40 ? prompt.substring(0, 40) + '...' : prompt;
+            ctx.fillText('"' + words + '"', cx, cy + r * 0.5 + Math.min(canvas.width, canvas.height) * 0.06);
+
+            const dataUrl = canvas.toDataURL('image/png');
+            document.getElementById('gen-image-data')?.remove();
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.id = 'gen-image-data';
+            hiddenInput.value = dataUrl;
+            document.body.appendChild(hiddenInput);
+
+            resultContainer.classList.remove('loading-state');
+            resultContainer.innerHTML = `<img src="${dataUrl}" alt="Generated Image" class="result-image">`;
+
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            updateCounter();
+        }
+
+        async function generateVideo() {
+            const prompt = document.getElementById('video-prompt').value.trim();
+            if (!prompt) {
+                alert('请输入提示词描述你想要的视频画面');
+                return;
+            }
+
+            const btn = document.getElementById('generate-video-btn');
+            const resultPanel = document.getElementById('video-result');
+            const resultContainer = document.getElementById('video-result-container');
+
+            btn.classList.add('loading');
+            btn.disabled = true;
+            resultPanel.classList.add('show');
+            resultContainer.classList.add('loading-state');
+            resultContainer.innerHTML = '<span class="loading-text" style="font-family:var(--font-mono);color:var(--ff00ff);font-size:0.9rem;letter-spacing:2px;">渲染中...</span>';
+
+            // Simulate video generation (longer delay)
+            await new Promise(r => setTimeout(r, 4000 + Math.random() * 3000));
+
+            // Create SVG-based video placeholder
+            const duration = parseInt(document.getElementById('video-duration').value);
+
+            resultContainer.classList.remove('loading-state');
+            resultContainer.innerHTML = `
+                <div style="position:relative; width:100%; max-width:640px; aspect-ratio:16/9; background:linear-gradient(135deg, #0a0a1a, #200030); display:flex; align-items:center; justify-content:center;
+                    border: 1px solid rgba(180,0,255,0.3); border-radius: 4px;">
+                    <div style="text-align:center;">
+                        <div style="font-size: 4rem; color: rgba(180,0,255,0.3);">▶</div>
+                        <div style="font-family:var(--font-mono); font-size:0.7rem; letter-spacing:2px; color:rgba(255,255,255,0.4); margin-top:12px;">
+                            VIDEO · ${duration}s · ${document.getElementById('video-resolution').value}
+                        </div>
+                        <div style="font-family:var(--font-mono); font-size:0.6rem; color:var(--text-secondary); margin-top:8px; max-width:300px;">
+                            "${prompt.length > 50 ? prompt.substring(0, 50) + '...' : prompt}"
+                        </div>
+                    </div>
+                    <div style="position:absolute; bottom:12px; right:16px;
+                        font-family:var(--font-mono); font-size:0.6rem; letter-spacing:1px; color:rgba(180,0,255,0.5);">
+                        AI GENERATED
+                    </div>
+                </div>
+            `;
+
+            btn.classList.remove('loading');
+            btn.disabled = false;
+            updateCounter();
+        }
+
+        /* ===== Result Actions ===== */
+        function downloadResult(type) {
+            if (type === 'image') {
+                const dataUrl = document.getElementById('gen-image-data')?.value;
+                if (dataUrl) {
+                    const a = document.createElement('a');
+                    a.href = dataUrl;
+                    a.download = 'znqm-generated-image.png';
+                    a.click();
+                } else {
+                    alert('请先生成一张图片');
+                }
+            } else {
+                alert('视频下载功能即将上线');
+            }
+        }
+
+        function clearResult(type) {
+            const resultPanel = document.getElementById(`${type}-result`);
+            const resultContainer = document.getElementById(`${type}-result-container`);
+            resultPanel.classList.remove('show');
+            resultContainer.innerHTML = '';
+        }
+
+        /* ===== API Key Management ===== */
+        document.getElementById('api-key-image').addEventListener('input', function() {
+            const dot = document.getElementById('img-api-status');
+            if (this.value.trim()) {
+                dot.classList.add('connected');
+                dot.classList.remove('disconnected');
+                localStorage.setItem('znqm_img_api_key', this.value);
+            } else {
+                dot.classList.add('disconnected');
+                dot.classList.remove('connected');
+                localStorage.removeItem('znqm_img_api_key');
+            }
+        });
+
+        document.getElementById('api-key-video').addEventListener('input', function() {
+            const dot = document.getElementById('vid-api-status');
+            if (this.value.trim()) {
+                dot.classList.add('connected');
+                dot.classList.remove('disconnected');
+                localStorage.setItem('znqm_vid_api_key', this.value);
+            } else {
+                dot.classList.add('disconnected');
+                dot.classList.remove('connected');
+                localStorage.removeItem('znqm_vid_api_key');
+            }
+        });
+
+        // Load saved keys
+        (function() {
+            const imgKey = localStorage.getItem('znqm_img_api_key');
+            if (imgKey) {
+                document.getElementById('api-key-image').value = imgKey;
+                const dot = document.getElementById('img-api-status');
+                dot.classList.add('connected');
+                dot.classList.remove('disconnected');
+            }
+            const vidKey = localStorage.getItem('znqm_vid_api_key');
+            if (vidKey) {
+                document.getElementById('api-key-video').value = vidKey;
+                const dot = document.getElementById('vid-api-status');
+                dot.classList.add('connected');
+                dot.classList.remove('disconnected');
+            }
+        })();
+
+        /* ===== Scroll Animation ===== */
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.gen-card, .gallery-item, .api-config, .api-guide').forEach(el => {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(30px)';
+            el.style.transition = 'opacity 0.6s, transform 0.6s';
+            observer.observe(el);
+
+            // Trigger visible ones immediately
+            const rect = el.getBoundingClientRect();
+            if (rect.top < window.innerHeight) {
+                el.style.opacity = '1';
+                el.style.transform = 'translateY(0)';
+            }
+        });
+    </script>
+</body>
+</html>
