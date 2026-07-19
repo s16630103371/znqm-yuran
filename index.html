@@ -609,32 +609,83 @@
             overflow: hidden;
         }
 
+        .result-container.loading-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 250px;
+        }
+
+        .loading-spinner {
+            width: 48px; height: 48px;
+            border: 2px solid rgba(0, 255, 255, 0.15);
+            border-top-color: var(--neon-cyan);
+            border-right-color: var(--neon-purple);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            position: relative;
+        }
+
+        .loading-spinner::after {
+            content: '';
+            position: absolute;
+            inset: 8px;
+            border: 1px solid rgba(0, 255, 255, 0.1);
+            border-radius: 50%;
+            animation: spin 2s linear infinite reverse;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .result-container .loading-text {
+            font-family: var(--font-mono);
+            font-size: 0.8rem; letter-spacing: 2px;
+            color: var(--neon-cyan);
+            margin-top: 20px;
+            animation: loadingPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes loadingPulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        .loading-progress {
+            width: 200px; height: 2px;
+            background: rgba(0, 255, 255, 0.1);
+            margin-top: 16px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .loading-progress::after {
+            content: '';
+            display: block;
+            width: 40%; height: 100%;
+            background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+            animation: progressScan 1.5s ease-in-out infinite;
+        }
+
+        @keyframes progressScan {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(350%); }
+        }
+
         .result-container.loading-state::after {
             content: '';
             position: absolute; inset: 0;
             background: repeating-linear-gradient(
                 0deg, transparent, transparent 3px,
-                rgba(0, 255, 255, 0.03) 3px, rgba(0, 255, 255, 0.03) 6px
+                rgba(0, 255, 255, 0.02) 3px, rgba(0, 255, 255, 0.02) 6px
             );
             animation: scanDown 2s linear infinite;
+            pointer-events: none;
         }
 
         @keyframes scanDown {
             0% { background-position: 0 0; }
             100% { background-position: 0 100px; }
-        }
-
-        .result-container .loading-text {
-            font-family: var(--font-mono);
-            font-size: 0.9rem; letter-spacing: 2px;
-            color: var(--neon-cyan);
-            animation: loadingDots 1.5s infinite;
-        }
-
-        @keyframes loadingDots {
-            0%, 20% { content: '生成中.'; }
-            40% { content: '生成中..'; }
-            60%, 100% { content: '生成中...'; }
         }
 
         .result-image {
@@ -1347,7 +1398,7 @@
             btn.classList.add('loading'); btn.disabled = true;
             resultPanel.classList.add('show');
             resultContainer.classList.add('loading-state');
-            resultContainer.innerHTML = '<span class="loading-text">AI 正在生成中...</span>';
+            resultContainer.innerHTML = '<div class="loading-spinner"></div><span class="loading-text">AI 正在解析图片并生成...</span><div class="loading-progress"></div>';
 
             try {
                 const resp = await fetch('/api/img2img', {
@@ -1379,7 +1430,7 @@
             btn.classList.add('loading'); btn.disabled = true;
             resultPanel.classList.add('show');
             resultContainer.classList.add('loading-state');
-            resultContainer.innerHTML = '<span class="loading-text">正在生成视频帧序列...</span>';
+            resultContainer.innerHTML = '<div class="loading-spinner"></div><span class="loading-text">正在生成视频帧序列...</span><div class="loading-progress"></div>';
 
             try {
                 const resp = await fetch('/api/img2video', {
