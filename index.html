@@ -1131,47 +1131,45 @@
     }
     function stopFrames() { if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; } }
 
-    /* ===== Download Result (blob-based, works cross-origin) ===== */
+    /* ===== Download Result (supports data URI and remote URL) ===== */
     async function downloadResult(mode) {
         const url = window._lastImg2ImgResult;
         if (!url) { showToast('没有可下载的内容', 'error'); return; }
-        showToast('正在准备下载...', 'info');
         try {
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error('下载失败');
-            const blob = await resp.blob();
-            const blobUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = blobUrl;
+            if (url.startsWith('data:')) {
+                a.href = url;
+            } else {
+                const resp = await fetch(url);
+                if (!resp.ok) throw new Error('下载失败');
+                a.href = URL.createObjectURL(await resp.blob());
+            }
             a.download = `znqm_${mode}_${Date.now()}.png`;
             document.body.appendChild(a); a.click(); a.remove();
-            URL.revokeObjectURL(blobUrl);
             showToast('下载成功', 'success');
         } catch (e) {
-            // Fallback: open in new tab
-            window.open(url, '_blank');
-            showToast('已在新标签页打开，请右键保存', 'info');
+            window.open(url.startsWith('data:') ? undefined : url, '_blank');
+            showToast('下载失败，请右键图片另存为', 'error');
         }
     }
 
     async function downloadFrame() {
         const display = document.getElementById('video-frame-display');
         if (!display || !display.src) { showToast('没有可下载的帧', 'error'); return; }
-        showToast('正在准备下载...', 'info');
         try {
-            const resp = await fetch(display.src);
-            if (!resp.ok) throw new Error('下载失败');
-            const blob = await resp.blob();
-            const blobUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = blobUrl;
+            if (display.src.startsWith('data:')) {
+                a.href = display.src;
+            } else {
+                const resp = await fetch(display.src);
+                if (!resp.ok) throw new Error('下载失败');
+                a.href = URL.createObjectURL(await resp.blob());
+            }
             a.download = `znqm_frame_${Date.now()}.png`;
             document.body.appendChild(a); a.click(); a.remove();
-            URL.revokeObjectURL(blobUrl);
             showToast('下载成功', 'success');
         } catch (e) {
-            window.open(display.src, '_blank');
-            showToast('已在新标签页打开，请右键保存', 'info');
+            showToast('下载失败，请右键图片另存为', 'error');
         }
     }
 
