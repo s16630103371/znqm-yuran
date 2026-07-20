@@ -7,7 +7,6 @@
     <meta name="description" content="ZNQM AI 生成工作室，使用前沿 AI 技术生成高质量图片和视频，释放你的创意潜能。">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230a0a0a' stroke='%2300ffff' stroke-width='1.5'/><text x='16' y='22' text-anchor='middle' fill='%2300ffff' font-family='monospace' font-size='16' font-weight='bold'>Z</text></svg>">
     <style>
-        /* ===== CSS Variables ===== */
         :root {
             --bg-primary: #050510;
             --bg-secondary: #0a0a1a;
@@ -23,11 +22,11 @@
             --border-glow-strong: rgba(0, 255, 255, 0.6);
             --font-mono: 'Courier New', 'Source Code Pro', monospace;
             --font-primary: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            --radius: 8px;
+            --toast-bg: rgba(10, 10, 30, 0.95);
         }
 
-        /* ===== Reset & Base ===== */
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
         html { scroll-behavior: smooth; }
 
         body {
@@ -39,17 +38,44 @@
             min-height: 100vh;
         }
 
+        /* ===== Toast Notification System ===== */
+        .toast-container {
+            position: fixed; top: 80px; right: 20px; z-index: 10000;
+            display: flex; flex-direction: column; gap: 10px;
+            pointer-events: none;
+        }
+        .toast {
+            pointer-events: auto;
+            padding: 14px 20px;
+            background: var(--toast-bg);
+            border: 1px solid var(--border-glow);
+            border-radius: var(--radius);
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            color: var(--text-primary);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+            animation: toastIn 0.3s ease-out;
+            max-width: 320px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .toast.error { border-color: #ff3366; }
+        .toast.error .toast-icon { color: #ff3366; }
+        .toast.success { border-color: var(--neon-green); }
+        .toast.success .toast-icon { color: var(--neon-green); }
+        .toast.info { border-color: var(--neon-cyan); }
+        .toast.info .toast-icon { color: var(--neon-cyan); }
+        .toast-icon { font-size: 1rem; flex-shrink: 0; }
+        .toast.hiding { animation: toastOut 0.3s ease-in forwards; }
+        @keyframes toastIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: translateX(0); } }
+        @keyframes toastOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(40px); } }
+
         /* ===== Scanline Overlay ===== */
         .scanlines {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; z-index: 9999;
-            background: repeating-linear-gradient(
-                0deg,
-                transparent,
-                transparent 2px,
-                rgba(0, 255, 255, 0.015) 2px,
-                rgba(0, 255, 255, 0.015) 4px
-            );
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 255, 255, 0.012) 2px, rgba(0, 255, 255, 0.012) 4px);
         }
 
         /* ===== Grid Background ===== */
@@ -57,15 +83,9 @@
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; z-index: 0;
             background-image:
-                linear-gradient(rgba(0, 255, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 255, 255, 0.03) 1px, transparent 1px);
+                linear-gradient(rgba(0, 255, 255, 0.025) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 255, 0.025) 1px, transparent 1px);
             background-size: 60px 60px;
-            animation: gridMove 20s linear infinite;
-        }
-
-        @keyframes gridMove {
-            0% { transform: perspective(500px) rotateX(60deg) translateY(0); }
-            100% { transform: perspective(500px) rotateX(60deg) translateY(60px); }
         }
 
         /* ===== Particles Canvas ===== */
@@ -77,1519 +97,1088 @@
         /* ===== Navigation ===== */
         .nav {
             position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
-            background: rgba(5, 5, 16, 0.85);
+            background: rgba(5, 5, 16, 0.9);
             backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-glow);
             padding: 0 40px;
             display: flex; align-items: center; justify-content: space-between;
-            height: 64px;
+            height: 60px;
         }
-
         .nav-logo {
             font-family: var(--font-mono);
-            font-size: 1.6rem;
-            font-weight: 900;
+            font-size: 1.5rem; font-weight: 900;
             color: var(--neon-cyan);
             text-decoration: none;
-            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(0, 255, 255, 0.3);
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
             letter-spacing: 3px;
-            position: relative;
         }
-
-        .nav-logo::after {
-            content: '';
-            position: absolute; bottom: -2px; left: 0; width: 100%; height: 2px;
-            background: var(--neon-cyan);
-            box-shadow: 0 0 10px var(--neon-cyan);
-            animation: logoLine 2s ease-in-out infinite;
-        }
-
-        @keyframes logoLine {
-            0%, 100% { opacity: 0.3; }
-            50% { opacity: 1; }
-        }
-
-        .nav-links {
-            display: flex; gap: 32px; list-style: none; align-items: center;
-        }
-
+        .nav-links { display: flex; gap: 28px; list-style: none; align-items: center; }
         .nav-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-family: var(--font-mono);
-            font-size: 0.9rem;
-            letter-spacing: 1px;
-            transition: all 0.3s;
-            position: relative;
-            padding: 4px 0;
+            color: var(--text-secondary); text-decoration: none;
+            font-family: var(--font-mono); font-size: 0.85rem; letter-spacing: 1px;
+            transition: color 0.3s; padding: 4px 0; position: relative;
         }
-
         .nav-links a::after {
             content: ''; position: absolute; bottom: 0; left: 0;
-            width: 0; height: 1px;
-            background: var(--neon-cyan);
-            box-shadow: 0 0 8px var(--neon-cyan);
-            transition: width 0.3s;
+            width: 0; height: 1px; background: var(--neon-cyan);
+            box-shadow: 0 0 8px var(--neon-cyan); transition: width 0.3s;
         }
-
         .nav-links a:hover { color: var(--neon-cyan); }
         .nav-links a:hover::after { width: 100%; }
-
         .nav-btn {
-            background: transparent;
-            border: 1px solid var(--neon-cyan);
-            color: var(--neon-cyan);
-            padding: 8px 20px;
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
+            background: transparent; border: 1px solid var(--neon-cyan);
+            color: var(--neon-cyan); padding: 7px 18px;
+            font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 1px;
+            cursor: pointer; transition: all 0.3s; text-decoration: none; border-radius: 4px;
         }
+        .nav-btn:hover { background: rgba(0, 255, 255, 0.1); box-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
 
-        .nav-btn:hover {
-            background: rgba(0, 255, 255, 0.1);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.3), inset 0 0 20px rgba(0, 255, 255, 0.1);
-        }
+        /* Mobile menu toggle */
+        .nav-toggle { display: none; background: none; border: none; cursor: pointer; padding: 8px; }
+        .nav-toggle span { display: block; width: 22px; height: 2px; background: var(--neon-cyan); margin: 5px 0; transition: all 0.3s; }
 
-        /* ===== Hero Section ===== */
+        /* ===== Compact Hero ===== */
         .hero {
             position: relative; z-index: 1;
-            min-height: 100vh;
-            display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            text-align: center; padding: 120px 20px 60px;
-        }
-
-        .hero-badge {
-            display: inline-flex; align-items: center; gap: 8px;
-            border: 1px solid var(--neon-purple);
-            padding: 6px 16px;
-            font-family: var(--font-mono);
-            font-size: 0.8rem; letter-spacing: 2px;
-            color: var(--neon-purple);
-            margin-bottom: 30px;
-            animation: badgePulse 3s ease-in-out infinite;
-        }
-
-        @keyframes badgePulse {
-            0%, 100% { box-shadow: 0 0 5px rgba(180, 0, 255, 0.3); }
-            50% { box-shadow: 0 0 25px rgba(180, 0, 255, 0.6); }
-        }
-
-        .hero-badge .dot {
-            width: 8px; height: 8px;
-            background: var(--neon-green);
-            border-radius: 50%;
-            box-shadow: 0 0 10px var(--neon-green);
-            animation: dotBlink 1.5s ease-in-out infinite;
-        }
-
-        @keyframes dotBlink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-        }
-
-        .hero-title {
-            font-family: var(--font-mono);
-            font-size: clamp(2.5rem, 6vw, 5rem);
-            font-weight: 900;
-            letter-spacing: 4px;
-            color: #fff;
-            text-shadow: 0 0 40px rgba(0, 255, 255, 0.4);
-            position: relative;
-        }
-
-        .hero-title .glitch {
-            position: relative; display: inline-block;
-        }
-
-        .hero-title .glitch::before,
-        .hero-title .glitch::after {
-            content: attr(data-text);
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-        }
-
-        .hero-title .glitch::before {
-            color: var(--neon-magenta);
-            animation: glitchTop 2s infinite linear alternate-reverse;
-            clip-path: polygon(0 0, 100% 0, 100% 33%, 0 33%);
-        }
-
-        .hero-title .glitch::after {
-            color: var(--neon-cyan);
-            animation: glitchBottom 2.5s infinite linear alternate-reverse;
-            clip-path: polygon(0 67%, 100% 67%, 100% 100%, 0 100%);
-        }
-
-        @keyframes glitchTop {
-            0% { transform: translate(0); }
-            20% { transform: translate(-3px, 2px); }
-            40% { transform: translate(3px, -1px); }
-            60% { transform: translate(-1px, 3px); }
-            80% { transform: translate(2px, -2px); }
-            100% { transform: translate(0); }
-        }
-
-        @keyframes glitchBottom {
-            0% { transform: translate(0); }
-            20% { transform: translate(2px, -1px); }
-            40% { transform: translate(-2px, 2px); }
-            60% { transform: translate(3px, -2px); }
-            80% { transform: translate(-1px, 1px); }
-            100% { transform: translate(0); }
-        }
-
-        .hero-subtitle {
-            font-family: var(--font-mono);
-            font-size: 1.1rem;
-            color: var(--text-secondary);
-            letter-spacing: 2px;
-            margin-top: 16px;
-            max-width: 600px;
-        }
-
-        .hero-cta {
-            margin-top: 40px;
-            display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;
-        }
-
-        .btn-primary {
-            background: rgba(0, 255, 255, 0.1);
-            border: 1px solid var(--neon-cyan);
-            color: var(--neon-cyan);
-            padding: 14px 36px;
-            font-family: var(--font-mono);
-            font-size: 1rem;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-primary::before {
-            content: '';
-            position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.2), transparent);
-            transition: left 0.5s;
-        }
-
-        .btn-primary:hover::before { left: 100%; }
-        .btn-primary:hover {
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.4), inset 0 0 30px rgba(0, 255, 255, 0.1);
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid var(--neon-purple);
-            color: var(--neon-purple);
-            padding: 14px 36px;
-            font-family: var(--font-mono);
-            font-size: 1rem;
-            letter-spacing: 2px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-decoration: none;
-        }
-
-        .btn-secondary:hover {
-            box-shadow: 0 0 30px rgba(180, 0, 255, 0.4);
-            transform: translateY(-2px);
-        }
-
-        /* ===== Error Box ===== */
-        .error-box {
-            text-align: center; padding: 40px;
-            font-family: var(--font-mono); color: #ff3366;
-            font-size: 1rem; letter-spacing: 1px;
-        }
-
-        /* ===== AI Describe Button ===== */
-        .ai-desc-btn {
-            display: inline-block; margin-top: 8px;
-            padding: 6px 14px;
-            background: transparent;
-            border: 1px solid var(--neon-purple);
-            color: var(--neon-purple);
-            font-family: var(--font-mono);
-            font-size: 0.75rem; letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .ai-desc-btn:hover {
-            background: rgba(180, 0, 255, 0.08);
-            box-shadow: 0 0 15px rgba(180, 0, 255, 0.2);
-        }
-        .ai-desc-btn.loading {
-            opacity: 0.5; pointer-events: none;
-        }
-
-        /* ===== Stats Bar ===== */
-        .stats-bar {
-            position: relative; z-index: 1;
-            display: flex; justify-content: center; gap: 60px;
-            padding: 30px 20px;
-            border-top: 1px solid var(--border-glow);
-            border-bottom: 1px solid var(--border-glow);
-            margin: 0 40px;
-            flex-wrap: wrap;
-        }
-
-        .stat-item {
+            padding: 100px 20px 40px;
             text-align: center;
         }
-
-        .stat-number {
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            border: 1px solid var(--neon-purple); padding: 5px 14px;
+            font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 2px;
+            color: var(--neon-purple); margin-bottom: 20px; border-radius: 20px;
+        }
+        .hero-badge .dot {
+            width: 6px; height: 6px; background: var(--neon-green);
+            border-radius: 50%; box-shadow: 0 0 8px var(--neon-green);
+            animation: dotBlink 1.5s ease-in-out infinite;
+        }
+        @keyframes dotBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .hero-title {
             font-family: var(--font-mono);
-            font-size: 2rem;
-            font-weight: 900;
-            color: var(--neon-cyan);
-            text-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+            font-size: clamp(2rem, 5vw, 3.5rem);
+            font-weight: 900; letter-spacing: 4px; color: #fff;
+            text-shadow: 0 0 40px rgba(0, 255, 255, 0.3);
+        }
+        .hero-subtitle {
+            font-family: var(--font-mono); font-size: 0.95rem;
+            color: var(--text-secondary); letter-spacing: 1px;
+            margin-top: 12px; max-width: 500px; margin-left: auto; margin-right: auto;
         }
 
-        .stat-label {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            letter-spacing: 2px;
-            color: var(--text-secondary);
-            margin-top: 4px;
-        }
-
-        /* ===== Section Common ===== */
-        .section {
+        /* ===== Main Layout: Tool-First ===== */
+        .main-content {
             position: relative; z-index: 1;
-            padding: 100px 20px;
-            max-width: 1200px;
-            margin: 0 auto;
+            max-width: 900px; margin: 0 auto;
+            padding: 0 20px 60px;
         }
 
-        .section-header {
-            text-align: center; margin-bottom: 60px;
-        }
-
-        .section-tag {
-            font-family: var(--font-mono);
-            font-size: 0.75rem; letter-spacing: 3px;
-            color: var(--neon-purple);
-            margin-bottom: 12px;
-        }
-
-        .section-title {
-            font-family: var(--font-mono);
-            font-size: clamp(1.8rem, 4vw, 2.5rem);
-            font-weight: 900; letter-spacing: 2px;
-            color: #fff;
-            position: relative;
-            display: inline-block;
-        }
-
-        .section-title::after {
-            content: '';
-            position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
-            width: 60px; height: 2px;
-            background: var(--neon-cyan);
-            box-shadow: 0 0 15px var(--neon-cyan);
-        }
-
-        .section-desc {
-            color: var(--text-secondary);
-            font-family: var(--font-mono);
-            font-size: 0.9rem; letter-spacing: 1px;
-            margin-top: 24px;
-            max-width: 500px; margin-left: auto; margin-right: auto;
-        }
-
-        /* ===== Generator Section ===== */
+        /* ===== Generator Tabs ===== */
+        .generator-section { margin-top: 30px; }
         .generator-tabs {
-            display: flex; justify-content: center; gap: 0;
-            margin-bottom: 40px;
+            display: flex; justify-content: center; gap: 0; margin-bottom: 24px;
         }
-
         .gen-tab {
-            padding: 12px 32px;
-            font-family: var(--font-mono);
-            font-size: 0.9rem; letter-spacing: 2px;
-            cursor: pointer;
-            transition: all 0.3s;
-            border: 1px solid var(--border-glow);
-            background: transparent;
-            color: var(--text-secondary);
+            padding: 12px 36px; font-family: var(--font-mono);
+            font-size: 0.9rem; letter-spacing: 2px; cursor: pointer;
+            transition: all 0.3s; border: 1px solid var(--border-glow);
+            background: transparent; color: var(--text-secondary);
             position: relative;
         }
-
-        .gen-tab:first-child { border-right: none; }
-        .gen-tab:last-child { border-left: none; }
-
+        .gen-tab:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+        .gen-tab:last-child { border-radius: 0 var(--radius) var(--radius) 0; border-left: none; }
         .gen-tab.active {
-            color: var(--neon-cyan);
-            background: rgba(0, 255, 255, 0.05);
+            color: var(--neon-cyan); background: rgba(0, 255, 255, 0.06);
             border-color: var(--neon-cyan);
-            box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.15);
             z-index: 1;
         }
+        .gen-tab:hover:not(.active) { color: #fff; background: rgba(255, 255, 255, 0.03); }
 
-        .gen-tab:hover:not(.active) {
-            color: #fff;
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .gen-panel {
-            display: none;
-        }
-
-        .gen-panel.active {
-            display: block;
-        }
+        /* ===== Panels ===== */
+        .gen-panel { display: none; animation: panelFade 0.3s ease-out; }
+        .gen-panel.active { display: block; }
+        @keyframes panelFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
         .gen-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border-glow);
-            border-radius: 4px;
-            padding: 40px;
-            max-width: 800px;
-            margin: 0 auto;
-            position: relative;
+            background: var(--bg-card); border: 1px solid var(--border-glow);
+            border-radius: var(--radius); padding: 32px;
+            position: relative; backdrop-filter: blur(10px);
         }
-
         .gen-card::before {
-            content: '';
-            position: absolute; top: 0; left: 0; right: 0; height: 1px;
+            content: ''; position: absolute; top: 0; left: 20px; right: 20px; height: 1px;
             background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
         }
-
         .gen-card-header {
-            font-family: var(--font-mono);
-            font-size: 0.7rem; letter-spacing: 2px;
-            color: var(--text-secondary);
-            margin-bottom: 20px;
-            display: flex; align-items: center; gap: 8px;
+            font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 2px;
+            color: var(--text-secondary); margin-bottom: 24px;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .gen-card-header .status-dot {
+            width: 6px; height: 6px; border-radius: 50%;
+            background: var(--neon-green); box-shadow: 0 0 6px var(--neon-green);
         }
 
-        .gen-card-header .corner {
-            width: 12px; height: 12px;
-            border: 1px solid var(--neon-cyan);
-            opacity: 0.5;
+        /* ===== Step Indicators ===== */
+        .step-indicators {
+            display: flex; align-items: center; gap: 0; margin-bottom: 24px;
+            font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 1px;
+        }
+        .step-item {
+            display: flex; align-items: center; gap: 6px;
+            color: var(--text-secondary); transition: color 0.3s;
+        }
+        .step-item.active { color: var(--neon-cyan); }
+        .step-item.done { color: var(--neon-green); }
+        .step-num {
+            width: 20px; height: 20px; border-radius: 50%;
+            border: 1px solid currentColor; display: flex;
+            align-items: center; justify-content: center; font-size: 0.6rem;
+        }
+        .step-item.active .step-num { background: rgba(0, 255, 255, 0.15); box-shadow: 0 0 8px rgba(0, 255, 255, 0.3); }
+        .step-item.done .step-num { background: rgba(0, 255, 65, 0.15); }
+        .step-line { width: 30px; height: 1px; background: var(--border-glow); margin: 0 8px; }
+        .step-line.done { background: var(--neon-green); }
+
+        /* ===== Upload Area (Enhanced) ===== */
+        .upload-area {
+            border: 2px dashed var(--border-glow); border-radius: var(--radius);
+            padding: 32px 24px; text-align: center; cursor: pointer;
+            transition: all 0.3s; min-height: 140px;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center; gap: 8px;
+            position: relative; overflow: hidden;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--neon-cyan); background: rgba(0, 255, 255, 0.04);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.1);
+        }
+        .upload-area.dragover { transform: scale(1.01); }
+        .upload-area.has-file { border-style: solid; border-color: var(--neon-green); padding: 16px; }
+        .upload-icon { font-size: 2rem; opacity: 0.6; }
+        .upload-hint { font-family: var(--font-mono); font-size: 0.8rem; letter-spacing: 1px; color: var(--text-secondary); }
+        .upload-sub { font-family: var(--font-mono); font-size: 0.65rem; color: rgba(255,255,255,0.25); margin-top: 4px; }
+
+        /* Upload preview with remove */
+        .upload-preview { position: relative; display: none; width: 100%; }
+        .upload-preview.has-image { display: block; }
+        .upload-preview img {
+            max-width: 100%; max-height: 240px; border-radius: 4px;
+            border: 1px solid var(--border-glow); display: block; margin: 0 auto;
+        }
+        .upload-remove {
+            position: absolute; top: 8px; right: 8px;
+            width: 28px; height: 28px; border-radius: 50%;
+            background: rgba(255, 51, 102, 0.9); border: none;
+            color: #fff; font-size: 1rem; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        }
+        .upload-remove:hover { background: #ff3366; transform: scale(1.1); }
+
+        /* Multi-upload grid */
+        .upload-preview-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr);
+            gap: 8px; width: 100%;
+        }
+        .upload-preview-grid img {
+            width: 100%; aspect-ratio: 1; object-fit: cover;
+            border-radius: 4px; border: 1px solid var(--border-glow);
+        }
+        .upload-preview-grid .slot {
+            aspect-ratio: 1; border: 1px dashed rgba(255,255,255,0.15);
+            border-radius: 4px; display: flex; align-items: center;
+            justify-content: center; font-family: var(--font-mono);
+            font-size: 1.2rem; color: rgba(255,255,255,0.15);
+        }
+        .multi-count {
+            font-family: var(--font-mono); font-size: 0.7rem;
+            color: var(--neon-cyan); margin-top: 8px; text-align: center;
         }
 
-        .gen-card-header .corner:first-child { border-right: none; border-bottom: none; }
-        .gen-card-header .corner:last-child { border-left: none; border-bottom: none; }
-
-        .prompt-input-group {
-            position: relative; margin-bottom: 24px;
-        }
-
+        /* ===== Prompt Input ===== */
+        .prompt-input-group { position: relative; margin-top: 20px; margin-bottom: 20px; }
         .prompt-label {
-            font-family: var(--font-mono);
-            font-size: 0.75rem; letter-spacing: 1px;
-            color: var(--neon-cyan);
-            margin-bottom: 8px;
+            font-family: var(--font-mono); font-size: 0.75rem;
+            letter-spacing: 1px; color: var(--neon-cyan); margin-bottom: 8px;
+            display: flex; align-items: center; justify-content: space-between;
         }
-
         .prompt-input {
-            width: 100%;
-            padding: 16px 20px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-glow);
-            color: #fff;
-            font-family: var(--font-mono);
-            font-size: 0.95rem;
-            letter-spacing: 0.5px;
-            resize: vertical;
-            min-height: 100px;
-            transition: all 0.3s;
-            outline: none;
+            width: 100%; padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.5); border: 1px solid var(--border-glow);
+            color: #fff; font-family: var(--font-mono); font-size: 0.9rem;
+            letter-spacing: 0.5px; resize: vertical; min-height: 90px;
+            transition: all 0.3s; outline: none; border-radius: 4px;
         }
-
         .prompt-input:focus {
             border-color: var(--neon-cyan);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.15), inset 0 0 20px rgba(0, 255, 255, 0.05);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.12), inset 0 0 15px rgba(0, 255, 255, 0.03);
+        }
+        .prompt-input::placeholder { color: rgba(255, 255, 255, 0.2); }
+        .char-count {
+            font-family: var(--font-mono); font-size: 0.6rem;
+            color: var(--text-secondary); text-align: right; margin-top: 4px;
         }
 
-        .prompt-input::placeholder {
-            color: rgba(255, 255, 255, 0.2);
+        /* AI Describe Button */
+        .ai-desc-btn {
+            display: inline-flex; align-items: center; gap: 6px;
+            margin-top: 8px; padding: 7px 14px;
+            background: transparent; border: 1px solid var(--neon-purple);
+            color: var(--neon-purple); font-family: var(--font-mono);
+            font-size: 0.72rem; letter-spacing: 1px; cursor: pointer;
+            transition: all 0.3s; border-radius: 4px;
         }
+        .ai-desc-btn:hover { background: rgba(180, 0, 255, 0.08); box-shadow: 0 0 12px rgba(180, 0, 255, 0.2); }
+        .ai-desc-btn.loading { opacity: 0.5; pointer-events: none; }
 
-        .options-row {
-            display: flex; gap: 20px; margin-bottom: 24px; flex-wrap: wrap;
-        }
-
-        .option-group {
-            flex: 1; min-width: 160px;
-        }
-
-        .option-label {
-            font-family: var(--font-mono);
-            font-size: 0.7rem; letter-spacing: 1px;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-        }
-
-        .option-select {
-            width: 100%;
-            padding: 10px 14px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-glow);
-            color: #fff;
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            cursor: pointer;
-            outline: none;
-            transition: all 0.3s;
-            appearance: none;
-            background-image: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%2300ffff'><path d='M6 8L0 0h12z'/></svg>");
-            background-repeat: no-repeat;
-            background-position: right 12px center;
-        }
-
-        .option-select:focus {
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
-        }
-
+        /* ===== Generate Button ===== */
         .generate-btn {
-            width: 100%;
-            padding: 16px;
-            background: transparent;
-            border: 1px solid var(--neon-cyan);
-            color: var(--neon-cyan);
-            font-family: var(--font-mono);
-            font-size: 1.1rem;
-            letter-spacing: 3px;
-            cursor: pointer;
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
+            width: 100%; padding: 15px; margin-top: 8px;
+            background: rgba(0, 255, 255, 0.06);
+            border: 1px solid var(--neon-cyan); color: var(--neon-cyan);
+            font-family: var(--font-mono); font-size: 1rem; letter-spacing: 3px;
+            cursor: pointer; transition: all 0.3s; position: relative;
+            overflow: hidden; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
         }
-
-        .generate-btn:hover {
-            background: rgba(0, 255, 255, 0.08);
-            box-shadow: 0 0 40px rgba(0, 255, 255, 0.3), inset 0 0 30px rgba(0, 255, 255, 0.08);
+        .generate-btn:hover:not(:disabled) {
+            background: rgba(0, 255, 255, 0.12);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.25), inset 0 0 20px rgba(0, 255, 255, 0.05);
+            transform: translateY(-1px);
         }
-
-        .generate-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
+        .generate-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
         .generate-btn .btn-spinner {
-            display: none;
-            width: 18px; height: 18px;
-            border: 2px solid rgba(0, 255, 255, 0.3);
-            border-top-color: var(--neon-cyan);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-right: 10px;
+            display: none; width: 16px; height: 16px;
+            border: 2px solid rgba(0, 255, 255, 0.3); border-top-color: var(--neon-cyan);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
         }
-
         @keyframes spin { to { transform: rotate(360deg); } }
-
         .generate-btn.loading .btn-text { display: none; }
         .generate-btn.loading .btn-spinner { display: inline-block; }
+        .generate-btn.loading .btn-loading-text { display: inline; }
+        .btn-loading-text { display: none; font-size: 0.85rem; letter-spacing: 2px; }
 
         /* ===== Result Panel ===== */
-        .result-panel {
-            display: none; margin-top: 30px;
-        }
-
-        .result-panel.show { display: block; }
-
+        .result-panel { display: none; margin-top: 24px; }
+        .result-panel.show { display: block; animation: panelFade 0.3s ease-out; }
         .result-container {
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-glow);
-            border-radius: 4px;
-            padding: 20px;
-            min-height: 300px;
+            background: rgba(0, 0, 0, 0.4); border: 1px solid var(--border-glow);
+            border-radius: var(--radius); padding: 20px; min-height: 200px;
             display: flex; align-items: center; justify-content: center;
-            position: relative;
-            overflow: hidden;
+            position: relative; overflow: hidden;
         }
+        .result-container.loading-state { flex-direction: column; gap: 16px; }
 
-        .result-container.loading-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            min-height: 250px;
-        }
-
+        /* Loading animation */
         .loading-spinner {
-            width: 48px; height: 48px;
-            border: 2px solid rgba(0, 255, 255, 0.15);
-            border-top-color: var(--neon-cyan);
-            border-right-color: var(--neon-purple);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
+            width: 44px; height: 44px;
+            border: 2px solid rgba(0, 255, 255, 0.12);
+            border-top-color: var(--neon-cyan); border-right-color: var(--neon-purple);
+            border-radius: 50%; animation: spin 1s linear infinite;
             position: relative;
         }
-
         .loading-spinner::after {
-            content: '';
-            position: absolute;
-            inset: 8px;
-            border: 1px solid rgba(0, 255, 255, 0.1);
-            border-radius: 50%;
+            content: ''; position: absolute; inset: 7px;
+            border: 1px solid rgba(0, 255, 255, 0.08); border-radius: 50%;
             animation: spin 2s linear infinite reverse;
         }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .result-container .loading-text {
-            font-family: var(--font-mono);
-            font-size: 0.8rem; letter-spacing: 2px;
-            color: var(--neon-cyan);
-            margin-top: 20px;
+        .loading-text {
+            font-family: var(--font-mono); font-size: 0.78rem;
+            letter-spacing: 2px; color: var(--neon-cyan);
             animation: loadingPulse 1.5s ease-in-out infinite;
         }
-
-        @keyframes loadingPulse {
-            0%, 100% { opacity: 0.4; }
-            50% { opacity: 1; }
-        }
-
+        @keyframes loadingPulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
         .loading-progress {
-            width: 200px; height: 2px;
-            background: rgba(0, 255, 255, 0.1);
-            margin-top: 16px;
-            border-radius: 2px;
-            overflow: hidden;
+            width: 180px; height: 2px; background: rgba(0, 255, 255, 0.1);
+            border-radius: 2px; overflow: hidden;
         }
-
         .loading-progress::after {
-            content: '';
-            display: block;
-            width: 40%; height: 100%;
+            content: ''; display: block; width: 40%; height: 100%;
             background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
             animation: progressScan 1.5s ease-in-out infinite;
         }
-
-        @keyframes progressScan {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(350%); }
-        }
-
-        .result-container.loading-state::after {
-            content: '';
-            position: absolute; inset: 0;
-            background: repeating-linear-gradient(
-                0deg, transparent, transparent 3px,
-                rgba(0, 255, 255, 0.02) 3px, rgba(0, 255, 255, 0.02) 6px
-            );
-            animation: scanDown 2s linear infinite;
-            pointer-events: none;
-        }
-
-        @keyframes scanDown {
-            0% { background-position: 0 0; }
-            100% { background-position: 0 100px; }
+        @keyframes progressScan { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+        .loading-eta {
+            font-family: var(--font-mono); font-size: 0.65rem;
+            color: var(--text-secondary); letter-spacing: 1px;
         }
 
         .result-image {
-            max-width: 100%; max-height: 500px;
-            border-radius: 2px;
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
+            max-width: 100%; max-height: 480px; border-radius: 4px;
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.15);
         }
-
-        .result-video {
-            max-width: 100%; max-height: 500px;
-            border-radius: 2px;
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2);
-        }
-
+        .result-video { max-width: 100%; max-height: 480px; border-radius: 4px; }
         .result-actions {
-            display: flex; gap: 12px; margin-top: 16px; justify-content: center;
+            display: flex; gap: 10px; margin-top: 14px; justify-content: center; flex-wrap: wrap;
         }
-
         .result-action-btn {
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid var(--text-secondary);
-            color: var(--text-secondary);
-            font-family: var(--font-mono);
-            font-size: 0.75rem; letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.3s;
+            padding: 8px 18px; background: transparent;
+            border: 1px solid var(--text-secondary); color: var(--text-secondary);
+            font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 1px;
+            cursor: pointer; transition: all 0.3s; border-radius: 4px;
         }
-
         .result-action-btn:hover {
-            border-color: var(--neon-cyan);
-            color: var(--neon-cyan);
+            border-color: var(--neon-cyan); color: var(--neon-cyan);
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
         }
+        .result-action-btn.primary { border-color: var(--neon-cyan); color: var(--neon-cyan); }
+
+        /* Error state */
+        .error-box {
+            text-align: center; padding: 30px 20px;
+            font-family: var(--font-mono); color: #ff3366;
+            font-size: 0.85rem; letter-spacing: 1px;
+        }
+        .error-box .retry-btn {
+            display: inline-block; margin-top: 14px; padding: 8px 20px;
+            border: 1px solid #ff3366; color: #ff3366; background: transparent;
+            font-family: var(--font-mono); font-size: 0.75rem; cursor: pointer;
+            transition: all 0.3s; border-radius: 4px;
+        }
+        .error-box .retry-btn:hover { background: rgba(255, 51, 102, 0.1); }
 
         /* ===== Gallery Section ===== */
+        .gallery-section {
+            position: relative; z-index: 1;
+            max-width: 1100px; margin: 0 auto;
+            padding: 60px 20px 80px;
+        }
+        .section-header { text-align: center; margin-bottom: 40px; }
+        .section-tag {
+            font-family: var(--font-mono); font-size: 0.7rem;
+            letter-spacing: 3px; color: var(--neon-purple); margin-bottom: 10px;
+        }
+        .section-title {
+            font-family: var(--font-mono);
+            font-size: clamp(1.5rem, 3vw, 2rem);
+            font-weight: 900; letter-spacing: 2px; color: #fff;
+            position: relative; display: inline-block;
+        }
+        .section-title::after {
+            content: ''; position: absolute; bottom: -8px; left: 50%;
+            transform: translateX(-50%); width: 50px; height: 2px;
+            background: var(--neon-cyan); box-shadow: 0 0 10px var(--neon-cyan);
+        }
+        .section-desc {
+            color: var(--text-secondary); font-family: var(--font-mono);
+            font-size: 0.8rem; letter-spacing: 1px; margin-top: 20px;
+        }
         .gallery-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 20px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 16px;
         }
-
         .gallery-item {
-            position: relative;
-            border: 1px solid var(--border-glow);
-            border-radius: 4px;
-            overflow: hidden;
-            cursor: pointer;
-            transition: all 0.3s;
-            aspect-ratio: 1;
-            background: rgba(0, 0, 0, 0.3);
+            position: relative; border: 1px solid var(--border-glow);
+            border-radius: var(--radius); overflow: hidden; cursor: pointer;
+            transition: all 0.3s; aspect-ratio: 1; background: rgba(0, 0, 0, 0.3);
         }
-
         .gallery-item:hover {
             border-color: var(--neon-cyan);
-            box-shadow: 0 0 30px rgba(0, 255, 255, 0.25);
-            transform: translateY(-4px);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.2);
+            transform: translateY(-3px);
         }
-
-        .gallery-item img, .gallery-item video {
-            width: 100%; height: 100%; object-fit: cover;
-        }
-
         .gallery-overlay {
             position: absolute; inset: 0;
-            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, transparent 60%);
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, transparent 50%);
             opacity: 0; transition: opacity 0.3s;
-            display: flex; align-items: flex-end; padding: 16px;
+            display: flex; align-items: flex-end; padding: 14px;
         }
-
         .gallery-item:hover .gallery-overlay { opacity: 1; }
-
-        .gallery-overlay-text {
-            font-family: var(--font-mono);
-            font-size: 0.75rem; letter-spacing: 1px;
-            color: var(--neon-cyan);
-        }
-
+        .gallery-overlay-text { font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 1px; color: var(--neon-cyan); }
         .gallery-video-badge {
-            position: absolute; top: 12px; right: 12px;
-            padding: 4px 10px;
-            background: rgba(180, 0, 255, 0.8);
-            font-family: var(--font-mono);
-            font-size: 0.65rem; letter-spacing: 1px;
-            color: #fff;
-            border-radius: 2px;
-        }
-
-        /* ===== API Config Section ===== */
-        .api-config {
-            background: var(--bg-card);
-            border: 1px solid var(--border-glow-strong);
-            border-radius: 4px;
-            padding: 30px;
-            max-width: 600px;
-            margin: 60px auto 0;
-            position: relative;
-        }
-
-        .api-config::before {
-            content: '[ API CONFIG ]';
-            position: absolute; top: -10px; left: 20px;
-            background: var(--bg-primary);
-            padding: 0 10px;
-            font-family: var(--font-mono);
-            font-size: 0.7rem; letter-spacing: 2px;
-            color: var(--neon-yellow);
-        }
-
-        .api-input-group {
-            display: flex; gap: 12px; margin-bottom: 16px; align-items: center;
-        }
-
-        .api-input-group label {
-            font-family: var(--font-mono);
-            font-size: 0.75rem; letter-spacing: 1px;
-            color: var(--text-secondary);
-            min-width: 140px;
-        }
-
-        .api-input-group input {
-            flex: 1;
-            padding: 10px 14px;
-            background: rgba(0, 0, 0, 0.5);
-            border: 1px solid var(--border-glow);
-            color: #fff;
-            font-family: var(--font-mono);
-            font-size: 0.85rem;
-            outline: none;
-            transition: all 0.3s;
-        }
-
-        .api-input-group input:focus {
-            border-color: var(--neon-cyan);
-            box-shadow: 0 0 10px rgba(0, 255, 255, 0.15);
-        }
-
-        .api-status-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            display: inline-block;
-        }
-
-        .api-status-dot.connected { background: var(--neon-green); box-shadow: 0 0 8px var(--neon-green); }
-        .api-status-dot.disconnected { background: #ff3333; box-shadow: 0 0 8px #ff3333; }
-
-        /* ===== API Guide Section ===== */
-        .api-guide {
-            max-width: 600px;
-            margin: 40px auto 0;
-            padding: 24px;
-            border: 1px dashed var(--border-glow);
-            border-radius: 4px;
-        }
-
-        .api-guide h4 {
-            font-family: var(--font-mono);
-            font-size: 0.85rem; letter-spacing: 2px;
-            color: var(--neon-cyan);
-            margin-bottom: 12px;
-        }
-
-        .api-guide p, .api-guide code {
-            font-family: var(--font-mono);
-            font-size: 0.75rem;
-            color: var(--text-secondary);
-            line-height: 1.8;
-        }
-
-        .api-guide code {
-            background: rgba(0, 255, 255, 0.1);
-            padding: 2px 6px;
-            border-radius: 2px;
-            color: var(--neon-cyan);
-        }
-
-        .api-guide a {
-            color: var(--neon-purple);
-            text-decoration: none;
-        }
-
-        .api-guide a:hover {
-            text-shadow: 0 0 10px var(--neon-purple);
+            position: absolute; top: 10px; right: 10px; padding: 3px 8px;
+            background: rgba(180, 0, 255, 0.85); font-family: var(--font-mono);
+            font-size: 0.6rem; letter-spacing: 1px; color: #fff; border-radius: 3px;
         }
 
         /* ===== Footer ===== */
         .footer {
             position: relative; z-index: 1;
             border-top: 1px solid var(--border-glow);
-            padding: 40px;
-            text-align: center;
+            padding: 30px 20px; text-align: center;
         }
-
-        .footer-text {
-            font-family: var(--font-mono);
-            font-size: 0.7rem; letter-spacing: 2px;
-            color: var(--text-secondary);
-        }
-
-        .footer-text span {
-            color: var(--neon-cyan);
-        }
-
-        .footer-links {
-            display: flex; gap: 24px; justify-content: center;
-            margin-top: 16px; flex-wrap: wrap;
-        }
-
+        .footer-text { font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 2px; color: var(--text-secondary); }
+        .footer-text span { color: var(--neon-cyan); }
+        .footer-links { display: flex; gap: 20px; justify-content: center; margin-top: 12px; flex-wrap: wrap; }
         .footer-links a {
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-family: var(--font-mono);
-            font-size: 0.7rem; letter-spacing: 1px;
-            transition: color 0.3s;
+            color: var(--text-secondary); text-decoration: none;
+            font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 1px; transition: color 0.3s;
         }
-
         .footer-links a:hover { color: var(--neon-cyan); }
-
-        /* ===== Image Upload ===== */
-        .upload-area {
-            border: 2px dashed var(--border-glow);
-            border-radius: 4px;
-            padding: 24px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            min-height: 120px;
-            display: flex; align-items: center; justify-content: center;
-            position: relative;
-        }
-        .upload-area:hover {
-            border-color: var(--neon-cyan);
-            background: rgba(0, 255, 255, 0.03);
-            box-shadow: 0 0 20px rgba(0, 255, 255, 0.1);
-        }
-        .upload-area.multi { min-height: 100px; }
-        .upload-hint {
-            font-family: var(--font-mono);
-            font-size: 0.8rem; letter-spacing: 1px;
-            color: var(--text-secondary);
-        }
-        .upload-preview { display: none; }
-        .upload-preview.has-image { display: block; }
-        .upload-preview img {
-            max-width: 100%; max-height: 300px;
-            border-radius: 4px;
-            border: 1px solid var(--border-glow);
-        }
-        .upload-preview-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            margin-top: 12px;
-        }
-        .upload-preview-grid img {
-            width: 100%; aspect-ratio: 1;
-            object-fit: cover;
-            border-radius: 2px;
-            border: 1px solid var(--border-glow);
-        }
-        .upload-preview-grid .slot {
-            aspect-ratio: 1;
-            border: 1px dashed rgba(255,255,255,0.1);
-            border-radius: 2px;
-            display: flex; align-items: center; justify-content: center;
-            font-family: var(--font-mono);
-            font-size: 1.5rem;
-            color: rgba(255,255,255,0.1);
-        }
 
         /* ===== Responsive ===== */
         @media (max-width: 768px) {
-            .nav { padding: 0 12px; height: 56px; }
+            .nav { padding: 0 16px; height: 54px; }
             .nav-logo { font-size: 1.2rem; }
-            .nav-links { gap: 10px; }
-            .nav-links a { font-size: 0.7rem; letter-spacing: 0; }
-            .nav-btn { padding: 6px 12px; font-size: 0.7rem; }
+            .nav-links { 
+                display: none; position: fixed; top: 54px; left: 0; right: 0;
+                background: rgba(5, 5, 16, 0.97); backdrop-filter: blur(20px);
+                flex-direction: column; padding: 20px; gap: 16px;
+                border-bottom: 1px solid var(--border-glow);
+            }
+            .nav-links.open { display: flex; }
+            .nav-toggle { display: block; }
 
-            .hero { min-height: 80vh; padding: 80px 16px 40px; }
-            .hero-title { font-size: 2rem; letter-spacing: 2px; }
-            .hero-subtitle { font-size: 0.85rem; }
-            .hero-cta { flex-direction: column; align-items: center; gap: 12px; }
-            .btn-primary, .btn-secondary { width: 100%; max-width: 280px; text-align: center; padding: 12px 24px; font-size: 0.9rem; }
+            .hero { padding: 80px 16px 24px; }
+            .hero-title { font-size: 1.8rem; letter-spacing: 2px; }
+            .hero-subtitle { font-size: 0.8rem; }
 
-            .stats-bar { gap: 20px; margin: 0 8px; padding: 20px 8px; flex-wrap: wrap; }
-            .stat-number { font-size: 1.4rem; }
-            .stat-label { font-size: 0.65rem; }
+            .main-content { padding: 0 12px 40px; }
+            .gen-tab { padding: 10px 20px; font-size: 0.8rem; letter-spacing: 1px; }
+            .gen-card { padding: 20px 14px; }
+            .step-indicators { font-size: 0.6rem; }
+            .step-line { width: 16px; margin: 0 4px; }
 
-            .generator-tabs { overflow-x: auto; justify-content: flex-start; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-            .generator-tabs::-webkit-scrollbar { display: none; }
-            .gen-tab { padding: 10px 16px; font-size: 0.8rem; white-space: nowrap; flex-shrink: 0; letter-spacing: 1px; }
-
-            .section { padding: 50px 10px; }
-            .section-title { font-size: 1.4rem; }
-            .section-desc { font-size: 0.75rem; }
-
-            .gen-card { padding: 16px 10px; border-radius: 2px; }
-            .gen-card-header { font-size: 0.65rem; }
+            .upload-area { padding: 20px 14px; min-height: 110px; }
             .prompt-input { padding: 12px; font-size: 0.85rem; min-height: 80px; }
-            .options-row { flex-direction: column; gap: 8px; }
-            .option-select { padding: 10px 12px; font-size: 0.8rem; }
+            .generate-btn { padding: 13px; font-size: 0.9rem; letter-spacing: 2px; }
+            .ai-desc-btn { width: 100%; justify-content: center; padding: 10px; }
 
-            .generate-btn { padding: 14px; font-size: 0.95rem; letter-spacing: 2px; }
-
-            .upload-area { padding: 16px; min-height: 100px; }
-            .upload-area.multi { min-height: 80px; }
-            .upload-hint { font-size: 0.7rem; }
-            .upload-preview img { max-height: 200px; }
-            .upload-preview-grid { grid-template-columns: repeat(3, 1fr); gap: 4px; }
-            .upload-preview-grid img { aspect-ratio: 1; }
-
-            .ai-desc-btn { width: 100%; text-align: center; padding: 10px; font-size: 0.8rem; }
-
-            .result-container { padding: 12px; min-height: 200px; }
-            .result-image { max-height: 350px; }
-            .result-video { max-height: 250px; }
+            .result-container { padding: 14px; min-height: 160px; }
+            .result-image { max-height: 320px; }
             .result-actions { gap: 8px; }
-            .result-action-btn { padding: 8px 12px; font-size: 0.7rem; }
+            .result-action-btn { padding: 8px 14px; font-size: 0.68rem; }
 
-            .gallery-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .gallery-item { aspect-ratio: 1; }
+            .gallery-section { padding: 40px 12px 60px; }
+            .gallery-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
-            .api-config { padding: 20px 12px; }
-            .api-input-group { flex-direction: column; gap: 6px; }
-            .api-input-group label { min-width: auto; font-size: 0.7rem; }
+            .toast-container { top: 60px; right: 10px; left: 10px; }
+            .toast { max-width: 100%; font-size: 0.75rem; }
 
-            .footer { padding: 24px 12px; }
-            .footer-text { font-size: 0.65rem; }
-            .footer-links { gap: 12px; }
+            .upload-preview-grid { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+        }
 
-            .loading-spinner { width: 36px; height: 36px; }
-            .loading-text { font-size: 0.7rem; }
-            .loading-progress { width: 150px; }
-
-            .error-box { padding: 24px; font-size: 0.85rem; }
+        @media (max-width: 380px) {
+            .gallery-grid { grid-template-columns: 1fr; }
+            .gen-tab { padding: 10px 14px; font-size: 0.75rem; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Scanline Overlay -->
     <div class="scanlines"></div>
-
-    <!-- Grid Background -->
     <div class="grid-bg"></div>
-
-    <!-- Particles Canvas -->
     <canvas id="particles-canvas"></canvas>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
 
     <!-- Navigation -->
     <nav class="nav">
         <a href="#" class="nav-logo">ZNQM</a>
-        <ul class="nav-links">
+        <button class="nav-toggle" id="nav-toggle" aria-label="菜单">
+            <span></span><span></span><span></span>
+        </button>
+        <ul class="nav-links" id="nav-links">
             <li><a href="#generate">生成</a></li>
             <li><a href="#gallery">作品</a></li>
-            <li><a href="#api">API</a></li>
             <li><a href="https://github.com/s16630103371" target="_blank" class="nav-btn">GitHub</a></li>
         </ul>
     </nav>
 
-    <!-- Hero Section -->
+    <!-- Compact Hero -->
     <section class="hero" id="home">
         <div class="hero-badge">
             <span class="dot"></span>
-            AI GENERATION STUDIO · BETA
+            AI GENERATION STUDIO
         </div>
-        <h1 class="hero-title">
-            <span class="glitch" data-text="ZNQM">ZNQM</span>
-        </h1>
-        <p class="hero-subtitle">
-            AI 驱动的图片与视频生成平台<br>输入你的创意，让 AI 为你创造视觉世界
-        </p>
-        <div class="hero-cta">
-            <a href="#generate" class="btn-primary">开始生成</a>
-            <a href="#gallery" class="btn-secondary">浏览作品</a>
-        </div>
+        <h1 class="hero-title">ZNQM</h1>
+        <p class="hero-subtitle">上传图片，输入描述，AI 为你生成全新视觉作品</p>
     </section>
 
-    <!-- Stats Bar -->
-    <div class="stats-bar">
-        <div class="stat-item">
-            <div class="stat-number" id="stat-models">5+</div>
-            <div class="stat-label">AI 模型</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-number" id="stat-generated">0</div>
-            <div class="stat-label">已生成</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-number">24/7</div>
-            <div class="stat-label">在线可用</div>
-        </div>
-        <div class="stat-item">
-            <div class="stat-number">&lt;30s</div>
-            <div class="stat-label">平均生成时间</div>
+    <!-- Main Tool Area -->
+    <div class="main-content" id="generate">
+        <div class="generator-section">
+            <!-- Tabs -->
+            <div class="generator-tabs">
+                <button class="gen-tab active" data-tab="img2img">图生图</button>
+                <button class="gen-tab" data-tab="img2video">图生视频</button>
+            </div>
+
+            <!-- Image-to-Image Panel -->
+            <div class="gen-panel active" id="panel-img2img">
+                <div class="gen-card">
+                    <div class="gen-card-header">
+                        <span class="status-dot"></span>
+                        IMG2IMG · 上传图片 → AI 重新创作
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="step-indicators" id="img2img-steps">
+                        <div class="step-item active" data-step="1"><span class="step-num">1</span> 上传图片</div>
+                        <div class="step-line"></div>
+                        <div class="step-item" data-step="2"><span class="step-num">2</span> 描述需求</div>
+                        <div class="step-line"></div>
+                        <div class="step-item" data-step="3"><span class="step-num">3</span> 生成</div>
+                    </div>
+
+                    <!-- Upload -->
+                    <div class="upload-area" id="img2img-upload">
+                        <input type="file" id="img2img-file" accept="image/*" hidden>
+                        <div class="upload-icon">🖼️</div>
+                        <div class="upload-hint">点击或拖拽上传参考图片</div>
+                        <div class="upload-sub">支持 JPG / PNG / WebP，最大 10MB</div>
+                        <div class="upload-preview" id="img2img-preview"></div>
+                    </div>
+
+                    <!-- Prompt -->
+                    <div class="prompt-input-group">
+                        <div class="prompt-label">
+                            <span>&gt; 描述你想要的画面</span>
+                        </div>
+                        <textarea class="prompt-input" id="img2img-prompt" placeholder="例如：将这张图片转换为赛博朋克风格，添加霓虹灯光效果和雨夜氛围..." maxlength="1000"></textarea>
+                        <div class="char-count"><span id="img2img-count">0</span>/1000</div>
+                        <button class="ai-desc-btn" id="img2img-ai-btn" onclick="aiFillPrompt('img2img')">🤖 AI 生成描述</button>
+                    </div>
+
+                    <!-- Generate -->
+                    <button class="generate-btn" id="img2img-gen-btn" onclick="generateImg2Img()">
+                        <span class="btn-spinner"></span>
+                        <span class="btn-text">▸ 开始生成</span>
+                        <span class="btn-loading-text">生成中...</span>
+                    </button>
+                </div>
+
+                <!-- Result -->
+                <div class="result-panel" id="img2img-result">
+                    <div class="result-container" id="img2img-result-container"></div>
+                    <div class="result-actions" id="img2img-actions" style="display:none;">
+                        <button class="result-action-btn primary" onclick="downloadResult('img2img')">⬇ 下载图片</button>
+                        <button class="result-action-btn" onclick="clearResult('img2img')">✕ 清除</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image-to-Video Panel -->
+            <div class="gen-panel" id="panel-img2video">
+                <div class="gen-card">
+                    <div class="gen-card-header">
+                        <span class="status-dot"></span>
+                        IMG2VIDEO · 多张图片 → 视频帧序列
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="step-indicators" id="img2video-steps">
+                        <div class="step-item active" data-step="1"><span class="step-num">1</span> 上传图片</div>
+                        <div class="step-line"></div>
+                        <div class="step-item" data-step="2"><span class="step-num">2</span> 描述风格</div>
+                        <div class="step-line"></div>
+                        <div class="step-item" data-step="3"><span class="step-num">3</span> 生成</div>
+                    </div>
+
+                    <!-- Multi Upload -->
+                    <div class="upload-area" id="img2video-upload">
+                        <input type="file" id="img2video-file" accept="image/*" multiple hidden>
+                        <div class="upload-icon">🎬</div>
+                        <div class="upload-hint">上传 2-9 张图片组成视频帧</div>
+                        <div class="upload-sub">点击或拖拽，支持多选</div>
+                        <div class="upload-preview-grid" id="img2video-preview"></div>
+                        <div class="multi-count" id="img2video-count" style="display:none;"></div>
+                    </div>
+
+                    <!-- Prompt -->
+                    <div class="prompt-input-group">
+                        <div class="prompt-label">
+                            <span>&gt; 描述视频风格与转场</span>
+                        </div>
+                        <textarea class="prompt-input" id="img2video-prompt" placeholder="例如：平滑过渡，赛博朋克色调，镜头缓慢推进..." maxlength="500"></textarea>
+                        <div class="char-count"><span id="img2video-char-count">0</span>/500</div>
+                        <button class="ai-desc-btn" id="img2video-ai-btn" onclick="aiFillPrompt('img2video')">🤖 AI 生成描述</button>
+                    </div>
+
+                    <!-- Generate -->
+                    <button class="generate-btn" id="img2video-gen-btn" onclick="generateImg2Video()">
+                        <span class="btn-spinner"></span>
+                        <span class="btn-text">▸ 生成视频帧序列</span>
+                        <span class="btn-loading-text">生成中...</span>
+                    </button>
+                </div>
+
+                <!-- Result -->
+                <div class="result-panel" id="img2video-result">
+                    <div class="result-container" id="img2video-result-container"></div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- Generator Section -->
-    <section class="section" id="generate">
-        <div class="section-header">
-            <div class="section-tag">// GENERATOR</div>
-            <h2 class="section-title">AI 生成引擎</h2>
-            <p class="section-desc">选择模式，输入提示词，释放 AI 创造力</p>
-        </div>
-
-        <!-- Tabs -->
-        <div class="generator-tabs">
-            <button class="gen-tab active" data-tab="img2img">图生图</button>
-            <button class="gen-tab" data-tab="img2video">图生视频</button>
-        </div>
-
-        <!-- Video Generation Panel -->
-        <div class="gen-panel" id="panel-video">
-            <div class="gen-card">
-                <div class="gen-card-header">
-                    <span class="corner"></span>
-                    VIDEO_GENERATION.exe
-                    <span class="corner"></span>
-                </div>
-
-                <div class="prompt-input-group">
-                    <div class="prompt-label">&gt; PROMPT</div>
-                    <textarea
-                        class="prompt-input"
-                        id="video-prompt"
-                        placeholder="描述你想要的视频画面和动态...&#10;&#10;例如：一个赛博朋克世界的街道，镜头缓慢向前推进，霓虹灯在雨中闪烁，路人穿着未来风格的服装行走，电影级画质，流畅运镜"
-                        maxlength="1000"
-                    ></textarea>
-                </div>
-
-                <div class="options-row">
-                    <div class="option-group">
-                        <div class="option-label">时长</div>
-                        <select class="option-select" id="video-duration">
-                            <option value="3">3 秒</option>
-                            <option value="5">5 秒</option>
-                            <option value="10">10 秒</option>
-                        </select>
-                    </div>
-                    <div class="option-group">
-                        <div class="option-label">分辨率</div>
-                        <select class="option-select" id="video-resolution">
-                            <option value="720p">720p</option>
-                            <option value="1080p">1080p</option>
-                        </select>
-                    </div>
-                    <div class="option-group">
-                        <div class="option-label">帧率</div>
-                        <select class="option-select" id="video-fps">
-                            <option value="24">24 fps</option>
-                            <option value="30">30 fps</option>
-                        </select>
-                    </div>
-                </div>
-
-                <button class="generate-btn" id="generate-video-btn" onclick="generateVideo()">
-                    <span class="btn-spinner"></span>
-                    <span class="btn-text">▸ 生成视频</span>
-                </button>
-            </div>
-
-            <!-- Result -->
-            <div class="result-panel" id="video-result">
-                <div class="result-container" id="video-result-container"></div>
-                <div class="result-actions">
-                    <button class="result-action-btn" onclick="downloadResult('video')">下载</button>
-                    <button class="result-action-btn" onclick="clearResult('video')">清除</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Image-to-Image Panel -->
-        <div class="gen-panel" id="panel-img2img">
-            <div class="gen-card">
-                <div class="gen-card-header">
-                    <span class="corner"></span>
-                    IMG2IMG_GENERATION.exe
-                    <span class="corner"></span>
-                </div>
-                <div class="upload-area" id="img2img-upload" onclick="document.getElementById('img2img-file').click()">
-                    <input type="file" id="img2img-file" accept="image/*" hidden onchange="handleUpload(this, 'img2img-preview', 'img2img')">
-                    <div class="upload-hint">📁 点击或拖拽上传参考图片</div>
-                    <div class="upload-preview" id="img2img-preview"></div>
-                </div>
-                <div class="prompt-input-group" style="margin-top:16px;">
-                    <div class="prompt-label">&gt; PROMPT</div>
-                    <textarea class="prompt-input" id="img2img-prompt" placeholder="描述你希望生成的新画面..." maxlength="1000"></textarea>
-                    <button class="ai-desc-btn" onclick="aiFillPrompt('img2img')">🤖 AI 生成描述</button>
-                </div>
-                <button class="generate-btn" onclick="generateImg2Img()">
-                    <span class="btn-text">▸ 生成新图片</span>
-                </button>
-            </div>
-            <div class="result-panel" id="img2img-result">
-                <div class="result-container" id="img2img-result-container"></div>
-                <div class="result-actions">
-                    <button class="result-action-btn" onclick="clearResult('img2img')">清除</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Images-to-Video Panel -->
-        <div class="gen-panel" id="panel-img2video">
-            <div class="gen-card">
-                <div class="gen-card-header">
-                    <span class="corner"></span>
-                    IMG2VIDEO_GENERATION.exe
-                    <span class="corner"></span>
-                </div>
-                <div class="upload-area multi" id="img2video-upload" onclick="document.getElementById('img2video-file').click()">
-                    <input type="file" id="img2video-file" accept="image/*" multiple hidden onchange="handleMultiUpload(this, 'img2video-preview', 'img2video')">
-                    <div class="upload-hint">📁 上传 2-9 张图片组成视频帧（点击或拖拽）</div>
-                    <div class="upload-preview-grid" id="img2video-preview"></div>
-                </div>
-                <div class="prompt-input-group" style="margin-top:16px;">
-                    <div class="prompt-label">&gt; PROMPT</div>
-                    <textarea class="prompt-input" id="img2video-prompt" placeholder="描述视频风格、转场效果..." maxlength="500"></textarea>
-                    <button class="ai-desc-btn" onclick="aiFillPrompt('img2video')">🤖 AI 生成描述</button>
-                </div>
-                <button class="generate-btn" onclick="generateImg2Video()">
-                    <span class="btn-text">▸ 生成视频帧序列</span>
-                </button>
-            </div>
-            <div class="result-panel" id="img2video-result">
-                <div class="result-container" id="img2video-result-container"></div>
-            </div>
-        </div>
-
     <!-- Gallery Section -->
-    <section class="section" id="gallery">
+    <section class="gallery-section" id="gallery">
         <div class="section-header">
             <div class="section-tag">// GALLERY</div>
             <h2 class="section-title">作品长廊</h2>
             <p class="section-desc">AI 生成的精选作品展示</p>
         </div>
-
-        <div class="gallery-grid" id="gallery-grid">
-            <!-- Items will be populated by JS -->
-        </div>
+        <div class="gallery-grid" id="gallery-grid"></div>
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-        <p class="footer-text">
-            ZNQM <span>//</span> AI GENERATION STUDIO <span>//</span> EST. 2026
-        </p>
+        <p class="footer-text">ZNQM <span>//</span> AI GENERATION STUDIO <span>//</span> 2026</p>
         <div class="footer-links">
             <a href="#home">首页</a>
             <a href="#generate">生成</a>
             <a href="#gallery">作品</a>
-            <a href="#api">API</a>
             <a href="https://github.com/s16630103371" target="_blank">GitHub</a>
-            <a href="mailto:s16630103371@github.com">联系</a>
         </div>
     </footer>
 
     <script>
-        /* ===== Particles Background ===== */
-        (function() {
-            const canvas = document.getElementById('particles-canvas');
-            const ctx = canvas.getContext('2d');
-            let particles = [];
-            let animationId;
+    /* ===== Toast System ===== */
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const icons = { info: '◈', success: '✓', error: '✕' };
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `<span class="toast-icon">${icons[type] || '◈'}</span><span>${message}</span>`;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.add('hiding');
+            setTimeout(() => toast.remove(), 300);
+        }, 3500);
+    }
 
-            function resize() {
-                canvas.width = window.innerWidth;
-                canvas.height = window.innerHeight;
+    /* ===== Mobile Nav Toggle ===== */
+    document.getElementById('nav-toggle').addEventListener('click', function() {
+        document.getElementById('nav-links').classList.toggle('open');
+    });
+    document.querySelectorAll('.nav-links a').forEach(a => {
+        a.addEventListener('click', () => document.getElementById('nav-links').classList.remove('open'));
+    });
+
+    /* ===== Particles Background ===== */
+    (function() {
+        const canvas = document.getElementById('particles-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        class Particle {
+            constructor() { this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.size = Math.random() * 1.5 + 0.5;
+                this.speedX = (Math.random() - 0.5) * 0.3;
+                this.speedY = (Math.random() - 0.5) * 0.3;
+                this.opacity = Math.random() * 0.4 + 0.1;
+                this.hue = Math.random() < 0.5 ? 180 : (Math.random() < 0.5 ? 300 : 60);
             }
-
-            class Particle {
-                constructor() {
-                    this.reset();
-                }
-
-                reset() {
-                    this.x = Math.random() * canvas.width;
-                    this.y = Math.random() * canvas.height;
-                    this.size = Math.random() * 2 + 0.5;
-                    this.speedX = (Math.random() - 0.5) * 0.5;
-                    this.speedY = (Math.random() - 0.5) * 0.5;
-                    this.opacity = Math.random() * 0.5 + 0.1;
-                    this.hue = Math.random() < 0.5 ? 180 : (Math.random() < 0.5 ? 300 : 60);
-                }
-
-                update() {
-                    this.x += this.speedX;
-                    this.y += this.speedY;
-
-                    if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
-                    if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
-
-                    this.opacity += (Math.random() - 0.5) * 0.02;
-                    this.opacity = Math.max(0.05, Math.min(0.6, this.opacity));
-                }
-
-                draw() {
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                    ctx.fillStyle = `hsla(${this.hue}, 100%, 60%, ${this.opacity})`;
-                    ctx.fill();
-
-                    // Glow
-                    ctx.beginPath();
-                    ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
-                    ctx.fillStyle = `hsla(${this.hue}, 100%, 60%, ${this.opacity * 0.1})`;
-                    ctx.fill();
-                }
+            update() {
+                this.x += this.speedX; this.y += this.speedY;
+                if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+                if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
             }
-
-            function init() {
-                resize();
-                particles = Array.from({ length: 80 }, () => new Particle());
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = `hsla(${this.hue}, 100%, 60%, ${this.opacity})`;
+                ctx.fill();
             }
-
-            function animate() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                particles.forEach(p => { p.update(); p.draw(); });
-
-                // Draw connections
-                for (let i = 0; i < particles.length; i++) {
-                    for (let j = i + 1; j < particles.length; j++) {
-                        const dx = particles[i].x - particles[j].x;
-                        const dy = particles[i].y - particles[j].y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < 120) {
-                            ctx.beginPath();
-                            ctx.moveTo(particles[i].x, particles[i].y);
-                            ctx.lineTo(particles[j].x, particles[j].y);
-                            ctx.strokeStyle = `rgba(0, 255, 255, ${0.04 * (1 - dist / 120)})`;
-                            ctx.lineWidth = 0.5;
-                            ctx.stroke();
-                        }
+        }
+        function init() { resize(); particles = Array.from({ length: 60 }, () => new Particle()); }
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 100) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(0, 255, 255, ${0.03 * (1 - dist / 100)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
                     }
                 }
-
-                animationId = requestAnimationFrame(animate);
             }
+            requestAnimationFrame(animate);
+        }
+        window.addEventListener('resize', resize);
+        init(); animate();
+    })();
 
-            window.addEventListener('resize', resize);
-            init();
-            animate();
-        })();
+    /* ===== Tab Switching (FIXED) ===== */
+    document.querySelectorAll('.gen-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.gen-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.gen-panel').forEach(p => p.classList.remove('active'));
+            this.classList.add('active');
+            const target = 'panel-' + this.dataset.tab;
+            document.getElementById(target).classList.add('active');
+        });
+    });
 
-        /* ===== Tab Switching ===== */
-        document.querySelectorAll('.gen-tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                document.querySelectorAll('.gen-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.gen-panel').forEach(p => p.classList.remove('active'));
+    /* ===== Step Indicator Updates ===== */
+    function updateSteps(mode, step) {
+        const container = document.getElementById(`${mode}-steps`);
+        if (!container) return;
+        container.querySelectorAll('.step-item').forEach(item => {
+            const s = parseInt(item.dataset.step);
+            item.classList.remove('active', 'done');
+            if (s < step) item.classList.add('done');
+            else if (s === step) item.classList.add('active');
+        });
+        container.querySelectorAll('.step-line').forEach((line, i) => {
+            line.classList.toggle('done', i < step - 1);
+        });
+    }
 
-                this.classList.add('active');
-                const target = this.dataset.tab === 'image' ? 'panel-image' : 'panel-video';
-                document.getElementById(target).classList.add('active');
-            });
+    /* ===== Upload: Drag & Drop + Click + Remove ===== */
+    const uploadedImages = { img2img: null, img2video: [] };
+
+    function setupUploadArea(areaId, inputId, mode) {
+        const area = document.getElementById(areaId);
+        const input = document.getElementById(inputId);
+
+        area.addEventListener('click', (e) => {
+            if (e.target.closest('.upload-remove')) return;
+            input.click();
         });
 
-        /* ===== Gallery Items ===== */
-        const galleryItems = [
-            { type: 'image', prompt: '赛博朋克城市夜景，霓虹降临', color: '00ffff' },
-            { type: 'image', prompt: '未来机械姬肖像，金属光泽', color: 'ff00ff' },
-            { type: 'video', prompt: '粒子特效展示，流光溢彩', color: 'b400ff' },
-            { type: 'image', prompt: '量子计算视觉化，数据流', color: '00ff41' },
-            { type: 'image', prompt: '太空站日出，科幻场景', color: 'ffff00' },
-            { type: 'video', prompt: '数字矩阵雨，代码瀑布', color: '00ffff' },
-        ];
+        area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('dragover'); });
+        area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+        area.addEventListener('drop', (e) => {
+            e.preventDefault(); area.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+            if (files.length) {
+                input.files = e.dataTransfer.files;
+                handleFiles(files, mode);
+            }
+        });
 
-        function renderGallery() {
-            const grid = document.getElementById('gallery-grid');
-            grid.innerHTML = galleryItems.map((item, i) => `
-                <div class="gallery-item" style="background: linear-gradient(135deg, #0a0a1a, #${item.color}11); display: flex; align-items: center; justify-content: center;">
-                    ${item.type === 'video' ? '<div class="gallery-video-badge">VIDEO</div>' : ''}
-                    <div style="text-align: center; padding: 20px;">
-                        <div style="font-family: var(--font-mono); font-size: 2rem; color: #${item.color}33; margin-bottom: 12px;">
-                            ${item.type === 'video' ? '▶' : '▣'}
-                        </div>
-                        <div style="font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 1px; color: #${item.color};">
-                            ${item.prompt}
-                        </div>
-                        <div style="font-family: var(--font-mono); font-size: 0.6rem; color: var(--text-secondary); margin-top: 8px;">
-                            点击生成相似作品
-                        </div>
-                    </div>
-                    <div class="gallery-overlay">
-                        <span class="gallery-overlay-text">${item.prompt}</span>
-                    </div>
-                </div>
-            `).join('');
+        input.addEventListener('change', function() {
+            if (this.files.length) handleFiles(Array.from(this.files), mode);
+        });
+    }
 
-            // Click handler
-            grid.querySelectorAll('.gallery-item').forEach((item, i) => {
-                item.addEventListener('click', () => {
-                    const gItem = galleryItems[i];
-                    document.querySelector('[data-tab="img2img"]').click();
-                    document.getElementById('img2img-prompt').value = gItem.prompt;
-                    document.getElementById('generate').scrollIntoView({ behavior: 'smooth' });
-                });
-            });
-        }
-
-        renderGallery();
-
-        /* ===== Generation Counter ===== */
-        let generationCount = parseInt(localStorage.getItem('znqm_gen_count') || '0');
-
-        function updateCounter() {
-            generationCount++;
-            localStorage.setItem('znqm_gen_count', generationCount.toString());
-            document.getElementById('stat-generated').textContent = generationCount;
-        }
-        document.getElementById('stat-generated').textContent = generationCount;
-
-        /* ===== Image Upload Handlers ===== */
-        const uploadedImages = { img2img: null, img2video: [] };
-
-        function handleUpload(input, previewId, mode) {
-            const file = input.files[0];
-            if (!file) return;
+    function handleFiles(files, mode) {
+        if (mode === 'img2img') {
+            const file = files[0];
+            if (file.size > 10 * 1024 * 1024) { showToast('图片大小不能超过 10MB', 'error'); return; }
             const reader = new FileReader();
             reader.onload = (e) => {
-                uploadedImages[mode] = e.target.result;
-                const preview = document.getElementById(previewId);
-                const uploadDiv = input.parentElement;
-                uploadDiv.querySelector('.upload-hint').style.display = 'none';
-                preview.innerHTML = `<img src="${e.target.result}" alt="uploaded">`;
-                preview.classList.add('has-image');
+                uploadedImages.img2img = e.target.result;
+                renderImg2ImgPreview(e.target.result);
+                updateSteps('img2img', 2);
+                showToast('图片上传成功', 'success');
             };
             reader.readAsDataURL(file);
-        }
-
-        function handleMultiUpload(input, previewId, mode) {
-            const files = Array.from(input.files).slice(0, 9);
-            uploadedImages[mode] = [];
-            const preview = document.getElementById(previewId);
-            const uploadDiv = input.parentElement;
-            uploadDiv.querySelector('.upload-hint').style.display = files.length ? 'none' : '';
-
-            preview.innerHTML = '';
-            files.forEach((file, i) => {
+        } else {
+            const validFiles = files.slice(0, 9);
+            uploadedImages.img2video = [];
+            let loaded = 0;
+            validFiles.forEach((file, i) => {
                 const reader = new FileReader();
                 reader.onload = (e) => {
-                    uploadedImages[mode][i] = e.target.result;
-                    const img = document.createElement('img');
-                    img.src = e.target.result;
-                    img.alt = `Frame ${i + 1}`;
-                    preview.appendChild(img);
+                    uploadedImages.img2video[i] = e.target.result;
+                    loaded++;
+                    if (loaded === validFiles.length) {
+                        renderImg2VideoPreview();
+                        updateSteps('img2video', 2);
+                        showToast(`已上传 ${validFiles.length} 张图片`, 'success');
+                    }
                 };
                 reader.readAsDataURL(file);
             });
-            // Fill remaining slots
-            for (let i = files.length; i < 9; i++) {
-                preview.appendChild(Object.assign(document.createElement('div'), { className: 'slot', textContent: '+' }));
-            }
         }
+    }
 
-        /* ===== New Generation Functions ===== */
+    function renderImg2ImgPreview(src) {
+        const area = document.getElementById('img2img-upload');
+        const preview = document.getElementById('img2img-preview');
+        area.classList.add('has-file');
+        area.querySelector('.upload-icon').style.display = 'none';
+        area.querySelector('.upload-hint').style.display = 'none';
+        area.querySelector('.upload-sub').style.display = 'none';
+        preview.innerHTML = `<img src="${src}" alt="参考图片"><button class="upload-remove" onclick="removeImg2Img(event)" title="移除图片">✕</button>`;
+        preview.classList.add('has-image');
+    }
 
-        async function generateImg2Img() {
-            const image = uploadedImages['img2img'];
-            const prompt = document.getElementById('img2img-prompt').value.trim();
-            if (!image) { alert('请先上传参考图片'); return; }
-            if (!prompt) { alert('请输入描述'); return; }
+    function removeImg2Img(e) {
+        e.stopPropagation();
+        uploadedImages.img2img = null;
+        const area = document.getElementById('img2img-upload');
+        const preview = document.getElementById('img2img-preview');
+        area.classList.remove('has-file');
+        area.querySelector('.upload-icon').style.display = '';
+        area.querySelector('.upload-hint').style.display = '';
+        area.querySelector('.upload-sub').style.display = '';
+        preview.innerHTML = '';
+        preview.classList.remove('has-image');
+        document.getElementById('img2img-file').value = '';
+        updateSteps('img2img', 1);
+    }
 
-            const btn = document.querySelector('#panel-img2img .generate-btn');
-            const resultPanel = document.getElementById('img2img-result');
-            const resultContainer = document.getElementById('img2img-result-container');
-            btn.classList.add('loading'); btn.disabled = true;
-            resultPanel.classList.add('show');
-            resultContainer.classList.add('loading-state');
-            resultContainer.innerHTML = '<div class="loading-spinner"></div><span class="loading-text">AI 正在解析图片并生成...</span><div class="loading-progress"></div>';
+    function renderImg2VideoPreview() {
+        const area = document.getElementById('img2video-upload');
+        const preview = document.getElementById('img2video-preview');
+        const countEl = document.getElementById('img2video-count');
+        const imgs = uploadedImages.img2video.filter(Boolean);
 
-            try {
-                const resp = await fetch('/api/img2img', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image, prompt, size: '1024x1024', style: 'photorealistic' })
-                });
-                const data = await resp.json();
-                if (!data.success) throw new Error(data.error);
-                resultContainer.classList.remove('loading-state');
-                resultContainer.innerHTML = data.images.map(url => `<img src="${url}" alt="Generated" class="result-image">`).join('');
-                updateCounter();
-            } catch (err) {
-                resultContainer.classList.remove('loading-state');
-                resultContainer.innerHTML = `<div class="error-box">● ${err.message}</div>`;
-            } finally {
-                btn.classList.remove('loading'); btn.disabled = false;
-            }
+        area.classList.add('has-file');
+        area.querySelector('.upload-icon').style.display = 'none';
+        area.querySelector('.upload-hint').style.display = 'none';
+        area.querySelector('.upload-sub').style.display = 'none';
+
+        preview.innerHTML = '';
+        imgs.forEach(src => {
+            const img = document.createElement('img');
+            img.src = src; preview.appendChild(img);
+        });
+        for (let i = imgs.length; i < 9; i++) {
+            const slot = document.createElement('div');
+            slot.className = 'slot'; slot.textContent = '+';
+            preview.appendChild(slot);
         }
+        countEl.style.display = 'block';
+        countEl.textContent = `${imgs.length}/9 张 · ${imgs.length >= 2 ? '✓ 可生成' : '至少需要 2 张'}`;
+    }
 
-        async function generateImg2Video() {
-            const images = uploadedImages['img2video'];
-            const prompt = document.getElementById('img2video-prompt').value.trim();
-            if (!images || images.length < 2) { alert('请至少上传 2 张图片'); return; }
+    setupUploadArea('img2img-upload', 'img2img-file', 'img2img');
+    setupUploadArea('img2video-upload', 'img2video-file', 'img2video');
 
-            const btn = document.querySelector('#panel-img2video .generate-btn');
-            const resultPanel = document.getElementById('img2video-result');
-            const resultContainer = document.getElementById('img2video-result-container');
-            btn.classList.add('loading'); btn.disabled = true;
-            resultPanel.classList.add('show');
-            resultContainer.classList.add('loading-state');
-            resultContainer.innerHTML = '<div class="loading-spinner"></div><span class="loading-text">正在生成视频帧序列...</span><div class="loading-progress"></div>';
+    /* ===== Char Count ===== */
+    document.getElementById('img2img-prompt').addEventListener('input', function() {
+        document.getElementById('img2img-count').textContent = this.value.length;
+    });
+    document.getElementById('img2video-prompt').addEventListener('input', function() {
+        document.getElementById('img2video-char-count').textContent = this.value.length;
+    });
 
-            try {
-                const resp = await fetch('/api/img2video', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ images, prompt, duration: 12 })
-                });
-                const data = await resp.json();
-                if (!data.success) throw new Error(data.error);
+    /* ===== Generation Functions ===== */
+    async function generateImg2Img() {
+        const image = uploadedImages.img2img;
+        const prompt = document.getElementById('img2img-prompt').value.trim();
+        if (!image) { showToast('请先上传参考图片', 'error'); return; }
+        if (!prompt) { showToast('请输入画面描述', 'error'); return; }
 
-                resultContainer.classList.remove('loading-state');
-                const allFrames = [...data.frames, ...data.transitions];
-                const framePlayer = `
-                    <div style="margin-bottom:12px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);text-align:center;">
-                        ▸ 视频帧序列 · ${allFrames.length} 帧 · ${data.duration}秒 · ${data.provider}
-                    </div>
-                    <div id="video-frames-player" style="position:relative;width:100%;max-width:640px;margin:0 auto;">
-                        <img id="video-frame-display" src="${allFrames[0]}" style="width:100%;border:1px solid var(--border-glow);border-radius:4px;">
-                        <div style="display:flex;gap:8px;margin-top:8px;justify-content:center;align-items:center;">
-                            <button onclick="playFrameSequence(${JSON.stringify(allFrames).replace(/"/g, '&quot;')})" class="result-action-btn">▶ 播放</button>
-                            <span id="frame-counter" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-secondary);">1 / ${allFrames.length}</span>
-                            <button onclick="stopFrameSequence()" class="result-action-btn">■ 停止</button>
-                        </div>
-                    </div>`;
-                resultContainer.innerHTML = framePlayer;
-                window._frameData = allFrames;
-                updateCounter();
-            } catch (err) {
-                resultContainer.classList.remove('loading-state');
-                resultContainer.innerHTML = `<div class="error-box">● ${err.message}</div>`;
-            } finally {
-                btn.classList.remove('loading'); btn.disabled = false;
-            }
-        }
+        const btn = document.getElementById('img2img-gen-btn');
+        const resultPanel = document.getElementById('img2img-result');
+        const resultContainer = document.getElementById('img2img-result-container');
+        const actions = document.getElementById('img2img-actions');
 
-        let _frameInterval = null;
-        function playFrameSequence(frames) {
-            stopFrameSequence();
-            const display = document.getElementById('video-frame-display');
-            const counter = document.getElementById('frame-counter');
-            if (!display) return;
-            let idx = 0;
-            const fps = Math.max(1, Math.floor(frames.length / 10));
-            _frameInterval = setInterval(() => {
-                idx = (idx + 1) % frames.length;
-                display.src = frames[idx];
-                if (counter) counter.textContent = `${idx + 1} / ${frames.length}`;
-            }, 1000 / fps);
-        }
-        function stopFrameSequence() {
-            if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; }
-        }
+        btn.classList.add('loading'); btn.disabled = true;
+        updateSteps('img2img', 3);
+        resultPanel.classList.add('show');
+        actions.style.display = 'none';
+        resultContainer.classList.add('loading-state');
+        resultContainer.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span class="loading-text">AI 正在创作中...</span>
+            <div class="loading-progress"></div>
+            <span class="loading-eta">预计 10-30 秒</span>`;
 
-        /* ===== AI Fill Prompt ===== */
-        async function aiFillPrompt(mode) {
-            const image = uploadedImages[mode];
-            if (!image) { alert('请先上传图片'); return; }
-
-            const textarea = document.getElementById(`${mode}-prompt`);
-            const btns = document.querySelectorAll(`#panel-${mode} .ai-desc-btn`);
-            btns.forEach(b => b.classList.add('loading'));
-            const orig = btns[0]?.textContent;
-            if (btns[0]) btns[0].textContent = '⏳ AI 分析中...';
-
-            try {
-                const resp = await fetch('/api/describe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ image: Array.isArray(image) ? image[0] : image })
-                });
-                const data = await resp.json();
-                if (!data.success) throw new Error(data.error);
-                textarea.value = data.description;
-            } catch (err) {
-                alert('AI 描述失败: ' + err.message);
-            } finally {
-                btns.forEach(b => b.classList.remove('loading'));
-                if (btns[0]) btns[0].textContent = orig || '🤖 AI 生成描述';
-            }
-        }
-
-        /* ===== Scroll Animation ===== */
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.style.opacity = '1';
-                    entry.target.style.transform = 'translateY(0)';
-                }
+        try {
+            const resp = await fetch('/api/img2img', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image, prompt, size: '1024x1024', style: 'photorealistic' })
             });
-        }, { threshold: 0.1 });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || '生成失败');
+            resultContainer.classList.remove('loading-state');
+            resultContainer.innerHTML = data.images.map(url => `<img src="${url}" alt="AI 生成结果" class="result-image">`).join('');
+            actions.style.display = 'flex';
+            window._lastImg2ImgResult = data.images[0];
+            showToast('图片生成成功！', 'success');
+        } catch (err) {
+            resultContainer.classList.remove('loading-state');
+            resultContainer.innerHTML = `<div class="error-box">● ${err.message}<br><button class="retry-btn" onclick="generateImg2Img()">↻ 重试</button></div>`;
+            showToast('生成失败: ' + err.message, 'error');
+        } finally {
+            btn.classList.remove('loading'); btn.disabled = false;
+        }
+    }
 
-        document.querySelectorAll('.gen-card, .gallery-item, .api-config, .api-guide').forEach(el => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(30px)';
-            el.style.transition = 'opacity 0.6s, transform 0.6s';
-            observer.observe(el);
+    async function generateImg2Video() {
+        const images = uploadedImages.img2video.filter(Boolean);
+        const prompt = document.getElementById('img2video-prompt').value.trim();
+        if (images.length < 2) { showToast('请至少上传 2 张图片', 'error'); return; }
 
-            // Trigger visible ones immediately
-            const rect = el.getBoundingClientRect();
-            if (rect.top < window.innerHeight) {
-                el.style.opacity = '1';
-                el.style.transform = 'translateY(0)';
+        const btn = document.getElementById('img2video-gen-btn');
+        const resultPanel = document.getElementById('img2video-result');
+        const resultContainer = document.getElementById('img2video-result-container');
+
+        btn.classList.add('loading'); btn.disabled = true;
+        updateSteps('img2video', 3);
+        resultPanel.classList.add('show');
+        resultContainer.classList.add('loading-state');
+        resultContainer.innerHTML = `
+            <div class="loading-spinner"></div>
+            <span class="loading-text">正在生成视频帧序列...</span>
+            <div class="loading-progress"></div>
+            <span class="loading-eta">预计 15-45 秒</span>`;
+
+        try {
+            const resp = await fetch('/api/img2video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ images, prompt, duration: 12 })
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || '生成失败');
+
+            resultContainer.classList.remove('loading-state');
+            const allFrames = [...data.frames, ...(data.transitions || [])];
+            window._frameData = allFrames;
+            resultContainer.innerHTML = `
+                <div style="width:100%;text-align:center;">
+                    <div style="margin-bottom:12px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);">
+                        ▸ ${allFrames.length} 帧 · ${data.duration || 12}s · ${data.provider || 'AI'}
+                    </div>
+                    <img id="video-frame-display" src="${allFrames[0]}" style="width:100%;max-width:600px;border:1px solid var(--border-glow);border-radius:4px;">
+                    <div style="display:flex;gap:10px;margin-top:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
+                        <button onclick="playFrames()" class="result-action-btn primary">▶ 播放</button>
+                        <span id="frame-counter" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-secondary);">1 / ${allFrames.length}</span>
+                        <button onclick="stopFrames()" class="result-action-btn">■ 停止</button>
+                    </div>
+                </div>`;
+            showToast('视频帧序列生成成功！', 'success');
+        } catch (err) {
+            resultContainer.classList.remove('loading-state');
+            resultContainer.innerHTML = `<div class="error-box">● ${err.message}<br><button class="retry-btn" onclick="generateImg2Video()">↻ 重试</button></div>`;
+            showToast('生成失败: ' + err.message, 'error');
+        } finally {
+            btn.classList.remove('loading'); btn.disabled = false;
+        }
+    }
+
+    let _frameInterval = null;
+    function playFrames() {
+        stopFrames();
+        const frames = window._frameData;
+        const display = document.getElementById('video-frame-display');
+        const counter = document.getElementById('frame-counter');
+        if (!display || !frames) return;
+        let idx = 0;
+        const fps = Math.max(1, Math.floor(frames.length / 10));
+        _frameInterval = setInterval(() => {
+            idx = (idx + 1) % frames.length;
+            display.src = frames[idx];
+            if (counter) counter.textContent = `${idx + 1} / ${frames.length}`;
+        }, 1000 / fps);
+    }
+    function stopFrames() { if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; } }
+
+    /* ===== Download Result ===== */
+    function downloadResult(mode) {
+        const url = window._lastImg2ImgResult;
+        if (!url) { showToast('没有可下载的内容', 'error'); return; }
+        const a = document.createElement('a');
+        a.href = url; a.download = `znqm_${mode}_${Date.now()}.png`;
+        a.target = '_blank';
+        document.body.appendChild(a); a.click(); a.remove();
+        showToast('开始下载...', 'info');
+    }
+
+    function clearResult(mode) {
+        const panel = document.getElementById(`${mode}-result`);
+        const container = document.getElementById(`${mode}-result-container`);
+        panel.classList.remove('show');
+        container.innerHTML = '';
+        container.classList.remove('loading-state');
+        if (mode === 'img2img') {
+            document.getElementById('img2img-actions').style.display = 'none';
+            window._lastImg2ImgResult = null;
+        }
+        stopFrames();
+    }
+
+    /* ===== AI Fill Prompt ===== */
+    async function aiFillPrompt(mode) {
+        const image = mode === 'img2img' ? uploadedImages.img2img : (uploadedImages.img2video.filter(Boolean)[0]);
+        if (!image) { showToast('请先上传图片', 'error'); return; }
+
+        const textarea = document.getElementById(`${mode}-prompt`);
+        const btn = document.getElementById(`${mode}-ai-btn`);
+        btn.classList.add('loading');
+        btn.textContent = '⏳ AI 分析中...';
+
+        try {
+            const resp = await fetch('/api/describe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image })
+            });
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error);
+            textarea.value = data.description;
+            textarea.dispatchEvent(new Event('input'));
+            showToast('AI 描述已填入', 'success');
+        } catch (err) {
+            showToast('AI 描述失败: ' + err.message, 'error');
+        } finally {
+            btn.classList.remove('loading');
+            btn.textContent = '🤖 AI 生成描述';
+        }
+    }
+
+    /* ===== Gallery ===== */
+    const galleryItems = [
+        { type: 'image', prompt: '赛博朋克城市夜景，霓虹降临', color: '00ffff' },
+        { type: 'image', prompt: '未来机械姬肖像，金属光泽', color: 'ff00ff' },
+        { type: 'video', prompt: '粒子特效展示，流光溢彩', color: 'b400ff' },
+        { type: 'image', prompt: '量子计算视觉化，数据流', color: '00ff41' },
+        { type: 'image', prompt: '太空站日出，科幻场景', color: 'ffff00' },
+        { type: 'video', prompt: '数字矩阵雨，代码瀑布', color: '00ffff' },
+    ];
+
+    function renderGallery() {
+        const grid = document.getElementById('gallery-grid');
+        grid.innerHTML = galleryItems.map((item, i) => `
+            <div class="gallery-item" style="background: linear-gradient(135deg, #0a0a1a, #${item.color}11); display: flex; align-items: center; justify-content: center;">
+                ${item.type === 'video' ? '<div class="gallery-video-badge">VIDEO</div>' : ''}
+                <div style="text-align: center; padding: 16px;">
+                    <div style="font-family: var(--font-mono); font-size: 1.8rem; color: #${item.color}44; margin-bottom: 10px;">
+                        ${item.type === 'video' ? '▶' : '▣'}
+                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 0.65rem; letter-spacing: 1px; color: #${item.color};">
+                        ${item.prompt}
+                    </div>
+                    <div style="font-family: var(--font-mono); font-size: 0.55rem; color: var(--text-secondary); margin-top: 6px;">
+                        点击使用此提示词
+                    </div>
+                </div>
+                <div class="gallery-overlay">
+                    <span class="gallery-overlay-text">${item.prompt}</span>
+                </div>
+            </div>
+        `).join('');
+
+        grid.querySelectorAll('.gallery-item').forEach((el, i) => {
+            el.addEventListener('click', () => {
+                document.querySelector('[data-tab="img2img"]').click();
+                document.getElementById('img2img-prompt').value = galleryItems[i].prompt;
+                document.getElementById('img2img-prompt').dispatchEvent(new Event('input'));
+                document.getElementById('generate').scrollIntoView({ behavior: 'smooth' });
+                showToast('提示词已填入，上传图片后即可生成', 'info');
+            });
+        });
+    }
+    renderGallery();
+
+    /* ===== Scroll Reveal ===== */
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.opacity = '1';
+                entry.target.style.transform = 'translateY(0)';
             }
         });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('.gen-card, .gallery-item').forEach(el => {
+        el.style.opacity = '0'; el.style.transform = 'translateY(20px)';
+        el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+        observer.observe(el);
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight) { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }
+    });
     </script>
 </body>
 </html>
