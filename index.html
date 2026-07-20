@@ -595,6 +595,7 @@
             <div class="generator-tabs">
                 <button class="gen-tab active" data-tab="img2img">图生图</button>
                 <button class="gen-tab" data-tab="img2video">图生视频</button>
+                <button class="gen-tab" data-tab="text2img">文生图</button>
             </div>
 
             <!-- Image-to-Image Panel -->
@@ -699,6 +700,48 @@
                 <!-- Result -->
                 <div class="result-panel" id="img2video-result">
                     <div class="result-container" id="img2video-result-container"></div>
+                </div>
+            </div>
+
+            <!-- Text-to-Image Panel -->
+            <div class="gen-panel" id="panel-text2img">
+                <div class="gen-card">
+                    <div class="gen-card-header">
+                        <span class="status-dot"></span>
+                        TEXT2IMG · 输入描述 → AI 生成图片
+                    </div>
+
+                    <!-- Steps -->
+                    <div class="step-indicators" id="text2img-steps">
+                        <div class="step-item active" data-step="1"><span class="step-num">1</span> 输入描述</div>
+                        <div class="step-line"></div>
+                        <div class="step-item" data-step="2"><span class="step-num">2</span> 生成</div>
+                    </div>
+
+                    <!-- Prompt -->
+                    <div class="prompt-input-group">
+                        <div class="prompt-label">
+                            <span>&gt; 描述你想要的画面</span>
+                        </div>
+                        <textarea class="prompt-input" id="text2img-prompt" placeholder="例如：赛博朋克城市夜景，霓虹灯光，雨后倒影，高楼林立，电影感构图..." maxlength="1000"></textarea>
+                        <div class="char-count"><span id="text2img-count">0</span>/1000</div>
+                    </div>
+
+                    <!-- Generate -->
+                    <button class="generate-btn" id="text2img-gen-btn" onclick="generateText2Img()">
+                        <span class="btn-spinner"></span>
+                        <span class="btn-text">▸ 开始生成</span>
+                        <span class="btn-loading-text">生成中...</span>
+                    </button>
+                </div>
+
+                <!-- Result -->
+                <div class="result-panel" id="text2img-result">
+                    <div class="result-container" id="text2img-result-container"></div>
+                    <div class="result-actions" id="text2img-actions" style="display:none;">
+                        <button class="result-action-btn primary" onclick="downloadResult('text2img')">⬇ 下载图片</button>
+                        <button class="result-action-btn" onclick="clearResult('text2img')">✕ 清除</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -962,6 +1005,9 @@
     document.getElementById('img2video-prompt').addEventListener('input', function() {
         document.getElementById('img2video-char-count').textContent = this.value.length;
     });
+    document.getElementById('text2img-prompt').addEventListener('input', function() {
+        document.getElementById('text2img-count').textContent = this.value.length;
+    });
 
     /* ===== Image Loading with Retry ===== */
     function loadImageWithRetry(src, imgId, spinnerId, textId, retryFn, maxRetries = 3) {
@@ -1114,6 +1160,51 @@
         }
     }
 
+    async function generateText2Img() {
+        const prompt = document.getElementById('text2img-prompt').value.trim();
+        if (!prompt) { showToast('请输入画面描述', 'error'); return; }
+
+        const btn = document.getElementById('text2img-gen-btn');
+        const resultPanel = document.getElementById('text2img-result');
+        const resultContainer = document.getElementById('text2img-result-container');
+        const actions = document.getElementById('text2img-actions');
+
+        btn.classList.add('loading'); btn.disabled = true;
+        updateSteps('text2img', 2);
+        resultPanel.classList.add('show');
+        resultContainer.classList.add('loading-state');
+        resultContainer.innerHTML = `
+            <div class="loading-spinner" id="text2img-img-loading" style="margin:0 auto 12px;"></div>
+            <span class="loading-text" id="text2img-img-loading-text">图片渲染中（约10-30秒）...</span>
+            <img id="text2img-result-img" alt="AI 生成结果" class="result-image" style="display:none;">`;
+
+        try {
+            const resp = await apiFetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, count: 1 })
+            });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || `请求失败 (${resp.status})`);
+            }
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error || '生成失败');
+
+            window._lastImg2ImgResult = data.images[0];
+            actions.style.display = 'flex';
+            loadImageWithRetry(data.images[0], 'text2img-result-img', 'text2img-img-loading', 'text2img-img-loading-text', () => generateText2Img());
+            showToast('图片生成成功！', 'success');
+        } catch (err) {
+            resultContainer.classList.remove('loading-state');
+            const msg = err.name === 'AbortError' ? '请求超时，请稍后重试' : err.message;
+            resultContainer.innerHTML = `<div class="error-box">● ${msg}<br><button class="retry-btn" onclick="generateText2Img()">↻ 重试</button></div>`;
+            showToast('生成失败: ' + msg, 'error');
+        } finally {
+            btn.classList.remove('loading'); btn.disabled = false;
+        }
+    }
+
     let _frameInterval = null;
     function playFrames() {
         stopFrames();
@@ -1179,8 +1270,8 @@
         panel.classList.remove('show');
         container.innerHTML = '';
         container.classList.remove('loading-state');
-        if (mode === 'img2img') {
-            document.getElementById('img2img-actions').style.display = 'none';
+        if (mode === 'img2img' || mode === 'text2img') {
+            document.getElementById(`${mode}-actions`).style.display = 'none';
             window._lastImg2ImgResult = null;
         }
         stopFrames();
