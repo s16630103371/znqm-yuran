@@ -729,7 +729,7 @@
     /* ===== API Configuration ===== */
     // 如果域名 znqm.cloud 已在 Cloudflare 设置 Worker 路由 (znqm.cloud/api/*)，留空即可
     // 否则改为 Worker 的完整地址，如: 'https://znqm-api-proxy.你的账号.workers.dev'
-    const API_BASE = '';
+    const API_BASE = 'https://znqm-api-proxy.znqm.workers.dev';
     const FETCH_TIMEOUT = 60000; // 60秒超时
 
     function apiFetch(path, options) {
