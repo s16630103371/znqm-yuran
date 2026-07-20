@@ -963,6 +963,40 @@
         document.getElementById('img2video-char-count').textContent = this.value.length;
     });
 
+    /* ===== Image Loading with Retry ===== */
+    function loadImageWithRetry(src, imgId, spinnerId, textId, retryFn, maxRetries = 3) {
+        let attempt = 0;
+        const img = document.getElementById(imgId);
+        const spinner = document.getElementById(spinnerId);
+        const text = document.getElementById(textId);
+
+        function tryLoad() {
+            attempt++;
+            if (text) text.textContent = attempt > 1 ? `第 ${attempt} 次尝试加载...` : '图片渲染中（约10-30秒）...';
+            img.onload = () => {
+                img.style.display = 'block';
+                if (spinner) spinner.style.display = 'none';
+                if (text) text.style.display = 'none';
+            };
+            img.onerror = () => {
+                if (attempt < maxRetries) {
+                    setTimeout(() => { img.src = ''; img.src = src + (src.includes('?') ? '&' : '?') + '_r=' + attempt; }, 3000 * attempt);
+                } else {
+                    if (spinner) spinner.style.display = 'none';
+                    if (text) text.style.display = 'none';
+                    img.style.display = 'none';
+                    const box = document.createElement('div');
+                    box.className = 'error-box';
+                    box.innerHTML = '● 图片加载失败（Pollinations 生成超时）<br><button class="retry-btn" id="img-retry-btn">↻ 重新生成</button>';
+                    img.parentElement.appendChild(box);
+                    box.querySelector('#img-retry-btn').addEventListener('click', retryFn);
+                }
+            };
+            img.src = src;
+        }
+        tryLoad();
+    }
+
     /* ===== Generation Functions ===== */
     async function generateImg2Img() {
         const image = uploadedImages.img2img;
@@ -1003,11 +1037,10 @@
             resultContainer.innerHTML = `
                 <div style="text-align:center;width:100%;">
                     <div class="loading-spinner" id="img2img-img-loading" style="margin:0 auto 12px;"></div>
-                    <span class="loading-text" id="img2img-img-loading-text">图片渲染中...</span>
-                    <img src="${data.images[0]}" alt="AI 生成结果" class="result-image" style="display:none;"
-                         onload="this.style.display='block';document.getElementById('img2img-img-loading').style.display='none';document.getElementById('img2img-img-loading-text').style.display='none';"
-                         onerror="this.parentElement.innerHTML='<div class=\\'error-box\\'>● 图片加载失败（网络超时或被拦截）<br><button class=\\'retry-btn\\' onclick=\\'generateImg2Img()\\'>↻ 重试</button></div>';">
+                    <span class="loading-text" id="img2img-img-loading-text">图片渲染中（约10-30秒）...</span>
+                    <img id="img2img-result-img" alt="AI 生成结果" class="result-image" style="display:none;">
                 </div>`;
+            loadImageWithRetry(data.images[0], 'img2img-result-img', 'img2img-img-loading', 'img2img-img-loading-text', () => generateImg2Img());
             actions.style.display = 'flex';
             window._lastImg2ImgResult = data.images[0];
             showToast('图片生成成功！', 'success');
