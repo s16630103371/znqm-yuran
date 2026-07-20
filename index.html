@@ -726,6 +726,19 @@
     </footer>
 
     <script>
+    /* ===== API Configuration ===== */
+    // 如果域名 znqm.cloud 已在 Cloudflare 设置 Worker 路由 (znqm.cloud/api/*)，留空即可
+    // 否则改为 Worker 的完整地址，如: 'https://znqm-api-proxy.你的账号.workers.dev'
+    const API_BASE = '';
+    const FETCH_TIMEOUT = 60000; // 60秒超时
+
+    function apiFetch(path, options) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+        return fetch(API_BASE + path, { ...options, signal: controller.signal })
+            .finally(() => clearTimeout(timer));
+    }
+
     /* ===== Toast System ===== */
     function showToast(message, type = 'info') {
         const container = document.getElementById('toast-container');
@@ -974,22 +987,35 @@
             <span class="loading-eta">预计 10-30 秒</span>`;
 
         try {
-            const resp = await fetch('/api/img2img', {
+            const resp = await apiFetch('/api/img2img', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image, prompt, size: '1024x1024', style: 'photorealistic' })
             });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || `请求失败 (${resp.status})`);
+            }
             const data = await resp.json();
             if (!data.success) throw new Error(data.error || '生成失败');
+
             resultContainer.classList.remove('loading-state');
-            resultContainer.innerHTML = data.images.map(url => `<img src="${url}" alt="AI 生成结果" class="result-image">`).join('');
+            resultContainer.innerHTML = `
+                <div style="text-align:center;width:100%;">
+                    <div class="loading-spinner" id="img2img-img-loading" style="margin:0 auto 12px;"></div>
+                    <span class="loading-text" id="img2img-img-loading-text">图片渲染中...</span>
+                    <img src="${data.images[0]}" alt="AI 生成结果" class="result-image" style="display:none;"
+                         onload="this.style.display='block';document.getElementById('img2img-img-loading').style.display='none';document.getElementById('img2img-img-loading-text').style.display='none';"
+                         onerror="this.parentElement.innerHTML='<div class=\\'error-box\\'>● 图片加载失败（网络超时或被拦截）<br><button class=\\'retry-btn\\' onclick=\\'generateImg2Img()\\'>↻ 重试</button></div>';">
+                </div>`;
             actions.style.display = 'flex';
             window._lastImg2ImgResult = data.images[0];
             showToast('图片生成成功！', 'success');
         } catch (err) {
             resultContainer.classList.remove('loading-state');
-            resultContainer.innerHTML = `<div class="error-box">● ${err.message}<br><button class="retry-btn" onclick="generateImg2Img()">↻ 重试</button></div>`;
-            showToast('生成失败: ' + err.message, 'error');
+            const msg = err.name === 'AbortError' ? '请求超时，请稍后重试' : err.message;
+            resultContainer.innerHTML = `<div class="error-box">● ${msg}<br><button class="retry-btn" onclick="generateImg2Img()">↻ 重试</button></div>`;
+            showToast('生成失败: ' + msg, 'error');
         } finally {
             btn.classList.remove('loading'); btn.disabled = false;
         }
@@ -1015,11 +1041,15 @@
             <span class="loading-eta">预计 15-45 秒</span>`;
 
         try {
-            const resp = await fetch('/api/img2video', {
+            const resp = await apiFetch('/api/img2video', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ images, prompt, duration: 12 })
             });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || `请求失败 (${resp.status})`);
+            }
             const data = await resp.json();
             if (!data.success) throw new Error(data.error || '生成失败');
 
@@ -1031,18 +1061,21 @@
                     <div style="margin-bottom:12px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);">
                         ▸ ${allFrames.length} 帧 · ${data.duration || 12}s · ${data.provider || 'AI'}
                     </div>
-                    <img id="video-frame-display" src="${allFrames[0]}" style="width:100%;max-width:600px;border:1px solid var(--border-glow);border-radius:4px;">
+                    <img id="video-frame-display" src="${allFrames[0]}" style="width:100%;max-width:600px;border:1px solid var(--border-glow);border-radius:4px;"
+                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22225%22><rect fill=%22%230a0a1a%22 width=%22400%22 height=%22225%22/><text x=%22200%22 y=%22112%22 text-anchor=%22middle%22 fill=%22%23ff3366%22 font-size=%2214%22>帧加载失败</text></svg>';">
                     <div style="display:flex;gap:10px;margin-top:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
                         <button onclick="playFrames()" class="result-action-btn primary">▶ 播放</button>
                         <span id="frame-counter" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-secondary);">1 / ${allFrames.length}</span>
                         <button onclick="stopFrames()" class="result-action-btn">■ 停止</button>
+                        <button onclick="downloadFrame()" class="result-action-btn">⬇ 下载当前帧</button>
                     </div>
                 </div>`;
             showToast('视频帧序列生成成功！', 'success');
         } catch (err) {
             resultContainer.classList.remove('loading-state');
-            resultContainer.innerHTML = `<div class="error-box">● ${err.message}<br><button class="retry-btn" onclick="generateImg2Video()">↻ 重试</button></div>`;
-            showToast('生成失败: ' + err.message, 'error');
+            const msg = err.name === 'AbortError' ? '请求超时，请稍后重试' : err.message;
+            resultContainer.innerHTML = `<div class="error-box">● ${msg}<br><button class="retry-btn" onclick="generateImg2Video()">↻ 重试</button></div>`;
+            showToast('生成失败: ' + msg, 'error');
         } finally {
             btn.classList.remove('loading'); btn.disabled = false;
         }
@@ -1065,15 +1098,48 @@
     }
     function stopFrames() { if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; } }
 
-    /* ===== Download Result ===== */
-    function downloadResult(mode) {
+    /* ===== Download Result (blob-based, works cross-origin) ===== */
+    async function downloadResult(mode) {
         const url = window._lastImg2ImgResult;
         if (!url) { showToast('没有可下载的内容', 'error'); return; }
-        const a = document.createElement('a');
-        a.href = url; a.download = `znqm_${mode}_${Date.now()}.png`;
-        a.target = '_blank';
-        document.body.appendChild(a); a.click(); a.remove();
-        showToast('开始下载...', 'info');
+        showToast('正在准备下载...', 'info');
+        try {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('下载失败');
+            const blob = await resp.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `znqm_${mode}_${Date.now()}.png`;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(blobUrl);
+            showToast('下载成功', 'success');
+        } catch (e) {
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+            showToast('已在新标签页打开，请右键保存', 'info');
+        }
+    }
+
+    async function downloadFrame() {
+        const display = document.getElementById('video-frame-display');
+        if (!display || !display.src) { showToast('没有可下载的帧', 'error'); return; }
+        showToast('正在准备下载...', 'info');
+        try {
+            const resp = await fetch(display.src);
+            if (!resp.ok) throw new Error('下载失败');
+            const blob = await resp.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = `znqm_frame_${Date.now()}.png`;
+            document.body.appendChild(a); a.click(); a.remove();
+            URL.revokeObjectURL(blobUrl);
+            showToast('下载成功', 'success');
+        } catch (e) {
+            window.open(display.src, '_blank');
+            showToast('已在新标签页打开，请右键保存', 'info');
+        }
     }
 
     function clearResult(mode) {
@@ -1100,18 +1166,23 @@
         btn.textContent = '⏳ AI 分析中...';
 
         try {
-            const resp = await fetch('/api/describe', {
+            const resp = await apiFetch('/api/describe', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ image })
             });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || `请求失败 (${resp.status})`);
+            }
             const data = await resp.json();
             if (!data.success) throw new Error(data.error);
             textarea.value = data.description;
             textarea.dispatchEvent(new Event('input'));
             showToast('AI 描述已填入', 'success');
         } catch (err) {
-            showToast('AI 描述失败: ' + err.message, 'error');
+            const msg = err.name === 'AbortError' ? 'AI 分析超时，请重试' : err.message;
+            showToast('AI 描述失败: ' + msg, 'error');
         } finally {
             btn.classList.remove('loading');
             btn.textContent = '🤖 AI 生成描述';
