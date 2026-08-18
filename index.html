@@ -773,7 +773,7 @@
     // 如果域名 znqm.cloud 已在 Cloudflare 设置 Worker 路由 (znqm.cloud/api/*)，留空即可
     // 否则改为 Worker 的完整地址，如: 'https://znqm-api-proxy.你的账号.workers.dev'
     const API_BASE = '';
-    const FETCH_TIMEOUT = 60000; // 60秒超时
+    const FETCH_TIMEOUT = 200000; // 200秒超时 (视频生成可能需要 1-3 分钟)
 
     function apiFetch(path, options) {
         const controller = new AbortController();
@@ -1115,9 +1115,9 @@
         resultContainer.classList.add('loading-state');
         resultContainer.innerHTML = `
             <div class="loading-spinner"></div>
-            <span class="loading-text">正在生成视频帧序列...</span>
+            <span class="loading-text">正在生成视频...</span>
             <div class="loading-progress"></div>
-            <span class="loading-eta">预计 15-45 秒</span>`;
+            <span class="loading-eta">预计 30-120 秒</span>`;
 
         try {
             const resp = await apiFetch('/api/img2video', {
@@ -1133,23 +1133,22 @@
             if (!data.success) throw new Error(data.error || '生成失败');
 
             resultContainer.classList.remove('loading-state');
-            const allFrames = [...data.frames, ...(data.transitions || [])];
-            window._frameData = allFrames;
+            const videoUrl = data.videoUrl || (data.frames && data.frames[0]);
+            window._lastVideoUrl = videoUrl;
             resultContainer.innerHTML = `
                 <div style="width:100%;text-align:center;">
                     <div style="margin-bottom:12px;font-family:var(--font-mono);font-size:0.7rem;color:var(--neon-cyan);">
-                        ▸ ${allFrames.length} 帧 · ${data.duration || 12}s · ${data.provider || 'AI'}
+                        ▸ ${data.duration || 12}s · ${data.provider || 'AI'}
                     </div>
-                    <img id="video-frame-display" src="${allFrames[0]}" style="width:100%;max-width:600px;border:1px solid var(--border-glow);border-radius:4px;"
-                         onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22400%22 height=%22225%22><rect fill=%22%230a0a1a%22 width=%22400%22 height=%22225%22/><text x=%22200%22 y=%22112%22 text-anchor=%22middle%22 fill=%22%23ff3366%22 font-size=%2214%22>帧加载失败</text></svg>';">
+                    <video id="result-video" src="${videoUrl}" controls
+                           style="width:100%;max-width:600px;border:1px solid var(--border-glow);border-radius:4px;background:#000;"
+                           onerror="this.outerHTML='<div style=\'padding:40px;font-family:var(--font-mono);color:#ff3366;\'>视频加载失败</div>';"></video>
                     <div style="display:flex;gap:10px;margin-top:12px;justify-content:center;align-items:center;flex-wrap:wrap;">
-                        <button onclick="playFrames()" class="result-action-btn primary">▶ 播放</button>
-                        <span id="frame-counter" style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-secondary);">1 / ${allFrames.length}</span>
-                        <button onclick="stopFrames()" class="result-action-btn">■ 停止</button>
-                        <button onclick="downloadFrame()" class="result-action-btn">⬇ 下载当前帧</button>
+                        <button onclick="downloadVideo()" class="result-action-btn primary">⬇ 下载视频</button>
+                        <button onclick="clearResult('img2video')" class="result-action-btn">✕ 清除</button>
                     </div>
                 </div>`;
-            showToast('视频帧序列生成成功！', 'success');
+            showToast('视频生成成功！', 'success');
         } catch (err) {
             resultContainer.classList.remove('loading-state');
             const msg = err.name === 'AbortError' ? '请求超时，请稍后重试' : err.message;
@@ -1206,19 +1205,25 @@
     }
 
     let _frameInterval = null;
-    function playFrames() {
-        stopFrames();
-        const frames = window._frameData;
-        const display = document.getElementById('video-frame-display');
-        const counter = document.getElementById('frame-counter');
-        if (!display || !frames) return;
-        let idx = 0;
-        const fps = Math.max(1, Math.floor(frames.length / 10));
-        _frameInterval = setInterval(() => {
-            idx = (idx + 1) % frames.length;
-            display.src = frames[idx];
-            if (counter) counter.textContent = `${idx + 1} / ${frames.length}`;
-        }, 1000 / fps);
+    async function downloadVideo() {
+        const url = window._lastVideoUrl;
+        if (!url) { showToast('没有可下载的视频', 'error'); return; }
+        try {
+            const a = document.createElement('a');
+            if (url.startsWith('data:')) {
+                a.href = url;
+            } else {
+                const resp = await apiFetch('/api/file?url=' + encodeURIComponent(url));
+                if (!resp.ok) throw new Error('下载失败');
+                a.href = URL.createObjectURL(await resp.blob());
+            }
+            a.download = `znqm_video_${Date.now()}.mp4`;
+            document.body.appendChild(a); a.click(); a.remove();
+            showToast('下载成功', 'success');
+        } catch (e) {
+            window.open(url.startsWith('data:') ? undefined : url, '_blank');
+            showToast('下载失败，请右键视频另存为', 'error');
+        }
     }
     function stopFrames() { if (_frameInterval) { clearInterval(_frameInterval); _frameInterval = null; } }
 
@@ -1231,7 +1236,7 @@
             if (url.startsWith('data:')) {
                 a.href = url;
             } else {
-                const resp = await fetch(url);
+                const resp = await apiFetch('/api/file?url=' + encodeURIComponent(url));
                 if (!resp.ok) throw new Error('下载失败');
                 a.href = URL.createObjectURL(await resp.blob());
             }
@@ -1240,26 +1245,6 @@
             showToast('下载成功', 'success');
         } catch (e) {
             window.open(url.startsWith('data:') ? undefined : url, '_blank');
-            showToast('下载失败，请右键图片另存为', 'error');
-        }
-    }
-
-    async function downloadFrame() {
-        const display = document.getElementById('video-frame-display');
-        if (!display || !display.src) { showToast('没有可下载的帧', 'error'); return; }
-        try {
-            const a = document.createElement('a');
-            if (display.src.startsWith('data:')) {
-                a.href = display.src;
-            } else {
-                const resp = await fetch(display.src);
-                if (!resp.ok) throw new Error('下载失败');
-                a.href = URL.createObjectURL(await resp.blob());
-            }
-            a.download = `znqm_frame_${Date.now()}.png`;
-            document.body.appendChild(a); a.click(); a.remove();
-            showToast('下载成功', 'success');
-        } catch (e) {
             showToast('下载失败，请右键图片另存为', 'error');
         }
     }
