@@ -1,7 +1,15 @@
-name = "znqm-api"
+name = "znqm-api-proxy"
 main = "worker.js"
 compatibility_date = "2026-01-01"
 
 routes = [
   { pattern = "znqm.cloud/api/*", zone_name = "znqm.cloud" }
 ]
+
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiter"]

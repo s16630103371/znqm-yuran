@@ -725,6 +725,7 @@
                         </div>
                         <textarea class="prompt-input" id="text2img-prompt" placeholder="例如：赛博朋克城市夜景，霓虹灯光，雨后倒影，高楼林立，电影感构图..." maxlength="1000"></textarea>
                         <div class="char-count"><span id="text2img-count">0</span>/1000</div>
+                        <button class="ai-desc-btn" id="text2img-ai-btn" onclick="aiOptimizePrompt()">🤖 AI 优化提示词</button>
                     </div>
 
                     <!-- Generate -->
@@ -1263,6 +1264,39 @@
     }
 
     /* ===== AI Fill Prompt ===== */
+    async function aiOptimizePrompt() {
+        const textarea = document.getElementById('text2img-prompt');
+        const text = textarea.value.trim();
+        if (!text) { showToast('请先输入画面描述', 'error'); return; }
+
+        const btn = document.getElementById('text2img-ai-btn');
+        btn.classList.add('loading');
+        btn.textContent = '⏳ AI 优化中...';
+
+        try {
+            const resp = await apiFetch('/api/describe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || `请求失败 (${resp.status})`);
+            }
+            const data = await resp.json();
+            if (!data.success) throw new Error(data.error);
+            textarea.value = data.description;
+            textarea.dispatchEvent(new Event('input'));
+            showToast('提示词已优化', 'success');
+        } catch (err) {
+            const msg = err.name === 'AbortError' ? 'AI 优化超时，请重试' : err.message;
+            showToast('AI 优化失败: ' + msg, 'error');
+        } finally {
+            btn.classList.remove('loading');
+            btn.textContent = '🤖 AI 优化提示词';
+        }
+    }
+
     async function aiFillPrompt(mode) {
         const image = mode === 'img2img' ? uploadedImages.img2img : (uploadedImages.img2video.filter(Boolean)[0]);
         if (!image) { showToast('请先上传图片', 'error'); return; }
