@@ -39,6 +39,8 @@ const ALLOWED_FILE_HOSTS = new Set([
   'cos-platform-outputs.agnes-ai.cn',
 ]);
 
+const SUPPORTED_RATIOS = new Set(['1:1', '3:4', '4:3', '16:9', '9:16', '2:3', '3:2', '21:9']);
+
 const RATE_LIMIT_SCOPE = ['/api/generate', '/api/img2img', '/api/img2video', '/api/describe'];
 const RATE_LIMIT_PER_MINUTE = 6;
 
@@ -109,6 +111,7 @@ async function handleImg2Img(env, body, request) {
   const image = body.image;
   if (!image) return json({ success: false, error: '请先上传参考图片' }, 400, request);
   if (!prompt) return json({ success: false, error: '请输入画面描述' }, 400, request);
+  const ratio = SUPPORTED_RATIOS.has(String(body.ratio)) ? String(body.ratio) : '1:1';
 
   const resp = await agnesFetch(env, '/images/generations', {
     method: 'POST',
@@ -116,7 +119,7 @@ async function handleImg2Img(env, body, request) {
       model: IMAGE_MODEL,
       prompt,
       size: '1K',
-      ratio: '1:1',
+      ratio,
       extra_body: { image: [image], response_format: 'url' },
     }),
   });

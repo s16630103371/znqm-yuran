@@ -913,6 +913,26 @@
         });
     }
 
+    const RATIO_PRESETS = [
+        { ratio: '1:1', value: 1 },
+        { ratio: '3:4', value: 3 / 4 },
+        { ratio: '2:3', value: 2 / 3 },
+        { ratio: '9:16', value: 9 / 16 },
+        { ratio: '4:3', value: 4 / 3 },
+        { ratio: '3:2', value: 3 / 2 },
+        { ratio: '16:9', value: 16 / 9 },
+        { ratio: '21:9', value: 21 / 9 },
+    ];
+    function matchRatio(w, h) {
+        const aspect = w / h;
+        let best = RATIO_PRESETS[0], bestDiff = Infinity;
+        for (const p of RATIO_PRESETS) {
+            const diff = Math.abs(p.value - aspect);
+            if (diff < bestDiff) { bestDiff = diff; best = p; }
+        }
+        return best.ratio;
+    }
+
     function handleFiles(files, mode) {
         if (mode === 'img2img') {
             const file = files[0];
@@ -920,6 +940,9 @@
             const reader = new FileReader();
             reader.onload = (e) => {
                 uploadedImages.img2img = e.target.result;
+                const img = new Image();
+                img.onload = () => { window._img2imgRatio = matchRatio(img.naturalWidth, img.naturalHeight); };
+                img.src = e.target.result;
                 renderImg2ImgPreview(e.target.result);
                 updateSteps('img2img', 2);
                 showToast('图片上传成功', 'success');
@@ -959,6 +982,7 @@
     function removeImg2Img(e) {
         e.stopPropagation();
         uploadedImages.img2img = null;
+        window._img2imgRatio = null;
         const area = document.getElementById('img2img-upload');
         const preview = document.getElementById('img2img-preview');
         area.classList.remove('has-file');
@@ -1071,7 +1095,7 @@
             const resp = await apiFetch('/api/img2img', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ image, prompt, size: '1024x1024', style: 'photorealistic' })
+                body: JSON.stringify({ image, prompt, ratio: window._img2imgRatio || '1:1' })
             });
             if (!resp.ok) {
                 const errData = await resp.json().catch(() => ({}));
