@@ -86,6 +86,7 @@ async function readBody(request) {
 async function handleText2Img(env, body, request) {
   const prompt = String(body.prompt || '').trim();
   if (!prompt) return json({ success: false, error: '请输入画面描述' }, 400, request);
+  const ratio = SUPPORTED_RATIOS.has(String(body.ratio)) ? String(body.ratio) : '1:1';
 
   const resp = await agnesFetch(env, '/images/generations', {
     method: 'POST',
@@ -93,7 +94,7 @@ async function handleText2Img(env, body, request) {
       model: IMAGE_MODEL,
       prompt,
       size: '1K',
-      ratio: '1:1',
+      ratio,
       extra_body: { response_format: 'url' },
     }),
   });

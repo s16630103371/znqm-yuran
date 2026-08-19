@@ -333,6 +333,25 @@
         .ai-desc-btn:hover { background: rgba(180, 0, 255, 0.08); box-shadow: 0 0 12px rgba(180, 0, 255, 0.2); }
         .ai-desc-btn.loading { opacity: 0.5; pointer-events: none; }
 
+        /* ===== Ratio Selector ===== */
+        .ratio-group { margin-bottom: 16px; }
+        .ratio-label {
+            font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 1px;
+            color: var(--text-secondary); display: block; margin-bottom: 8px;
+        }
+        .ratio-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+        .ratio-btn {
+            padding: 6px 14px; font-family: var(--font-mono); font-size: 0.7rem;
+            letter-spacing: 1px; cursor: pointer; transition: all 0.3s;
+            border: 1px solid var(--border-glow); background: transparent;
+            color: var(--text-secondary); border-radius: 4px;
+        }
+        .ratio-btn.active {
+            color: var(--neon-cyan); border-color: var(--neon-cyan);
+            background: rgba(0, 255, 255, 0.06); box-shadow: 0 0 12px rgba(0, 255, 255, 0.15);
+        }
+        .ratio-btn:hover:not(.active) { color: #fff; }
+
         /* ===== Generate Button ===== */
         .generate-btn {
             width: 100%; padding: 15px; margin-top: 8px;
@@ -728,6 +747,21 @@
                         <button class="ai-desc-btn" id="text2img-ai-btn" onclick="aiOptimizePrompt()">🤖 AI 优化提示词</button>
                     </div>
 
+                    <!-- Ratio -->
+                    <div class="ratio-group">
+                        <span class="ratio-label">&gt; 图片比例</span>
+                        <div class="ratio-btns" id="text2img-ratio">
+                            <button class="ratio-btn active" data-ratio="1:1">1:1</button>
+                            <button class="ratio-btn" data-ratio="4:3">4:3</button>
+                            <button class="ratio-btn" data-ratio="3:2">3:2</button>
+                            <button class="ratio-btn" data-ratio="16:9">16:9</button>
+                            <button class="ratio-btn" data-ratio="3:4">3:4</button>
+                            <button class="ratio-btn" data-ratio="2:3">2:3</button>
+                            <button class="ratio-btn" data-ratio="9:16">9:16</button>
+                            <button class="ratio-btn" data-ratio="21:9">21:9</button>
+                        </div>
+                    </div>
+
                     <!-- Generate -->
                     <button class="generate-btn" id="text2img-gen-btn" onclick="generateText2Img()">
                         <span class="btn-spinner"></span>
@@ -1024,6 +1058,20 @@
     setupUploadArea('img2video-upload', 'img2video-file', 'img2video');
 
     /* ===== Char Count ===== */
+    function getText2ImgRatio() {
+        const el = document.querySelector('#text2img-ratio .ratio-btn.active');
+        return el ? el.dataset.ratio : '1:1';
+    }
+
+    document.querySelectorAll('.ratio-btns').forEach(group => {
+        group.addEventListener('click', (e) => {
+            const btn = e.target.closest('.ratio-btn');
+            if (!btn) return;
+            group.querySelectorAll('.ratio-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+    });
+
     document.getElementById('img2img-prompt').addEventListener('input', function() {
         document.getElementById('img2img-count').textContent = this.value.length;
     });
@@ -1206,7 +1254,7 @@
             const resp = await apiFetch('/api/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, count: 1 })
+                body: JSON.stringify({ prompt, count: 1, ratio: getText2ImgRatio() })
             });
             if (!resp.ok) {
                 const errData = await resp.json().catch(() => ({}));
